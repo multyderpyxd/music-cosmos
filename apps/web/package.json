@@ -1,0 +1,36 @@
+{
+  "name": "@music-cosmos/web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@music-cosmos/domain": "workspace:*",
+    "@music-cosmos/config": "workspace:*",
+    "@music-cosmos/data-adapters": "workspace:*",
+    "@music-cosmos/normalization": "workspace:*",
+    "@music-cosmos/cosmos-engine": "workspace:*",
+    "@music-cosmos/layout-engine": "workspace:*",
+    "@music-cosmos/renderer-3d": "workspace:*",
+    "@music-cosmos/ui": "workspace:*",
+    "@react-three/drei": "^9.115.0",
+    "@react-three/fiber": "^8.17.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.168.0",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.168.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}

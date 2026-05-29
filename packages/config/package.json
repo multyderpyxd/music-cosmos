@@ -1,0 +1,12 @@
+{
+  "name": "@music-cosmos/config",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "echo 'config: no separate build needed'"
+  }
+}

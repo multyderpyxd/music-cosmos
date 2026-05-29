@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@music-cosmos/domain": ["../../packages/domain/src"],
+      "@music-cosmos/config": ["../../packages/config/src"],
+      "@music-cosmos/data-adapters": ["../../packages/data-adapters/src"],
+      "@music-cosmos/normalization": ["../../packages/normalization/src"],
+      "@music-cosmos/cosmos-engine": ["../../packages/cosmos-engine/src"],
+      "@music-cosmos/layout-engine": ["../../packages/layout-engine/src"],
+      "@music-cosmos/renderer-3d": ["../../packages/renderer-3d/src"],
+      "@music-cosmos/ui": ["../../packages/ui/src"]
+    }
+  },
+  "include": ["src"]
+}

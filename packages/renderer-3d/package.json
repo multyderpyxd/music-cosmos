@@ -1,0 +1,29 @@
+{
+  "name": "@music-cosmos/renderer-3d",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "echo 'renderer-3d: no separate build needed'"
+  },
+  "dependencies": {
+    "@music-cosmos/cosmos-engine": "workspace:*",
+    "@music-cosmos/layout-engine": "workspace:*",
+    "@music-cosmos/config": "workspace:*",
+    "@react-three/fiber": "^8.17.0",
+    "@react-three/drei": "^9.115.0",
+    "three": "^0.168.0",
+    "react": "^18.3.1"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "three": "^0.168.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.168.0",
+    "@types/react": "^18.3.0"
+  }
+}

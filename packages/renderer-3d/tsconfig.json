@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "paths": {
+      "@music-cosmos/cosmos-engine": ["../cosmos-engine/src"],
+      "@music-cosmos/layout-engine": ["../layout-engine/src"],
+      "@music-cosmos/config": ["../config/src"]
+    }
+  },
+  "include": ["src"]
+}

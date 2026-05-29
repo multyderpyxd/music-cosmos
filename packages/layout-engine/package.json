@@ -1,0 +1,17 @@
+{
+  "name": "@music-cosmos/layout-engine",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "echo 'layout-engine: no separate build needed'"
+  },
+  "dependencies": {
+    "@music-cosmos/domain": "workspace:*",
+    "@music-cosmos/config": "workspace:*",
+    "@music-cosmos/cosmos-engine": "workspace:*"
+  }
+}

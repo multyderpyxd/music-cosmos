@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Vite
+.vite/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# pnpm
+.pnpm-debug.log*
+
+# Logs
+*.log
+logs/
+
+# Testing
+test-results/
+playwright-report/
+
+# Personal data (never commit user music history)
+*.json.import
+user-data/
