@@ -29,7 +29,7 @@ See [docs/architecture.md](docs/architecture.md) for the full architectural over
 ```
 packages/
   domain/         Pure TypeScript domain types (Genre, Artist, Album, Track)
-  config/         Visual rules, render budgets, feature flags
+  config/         Visual rules, render budgets, feature flags, scalers
   data-adapters/  MockDataAdapter, StatsFmImportAdapter, SpotifyExportAdapter
   normalization/  Deduplication, metrics aggregation, data pipeline
   cosmos-engine/  Maps MusicDataset → CosmicGraph (visual properties)
@@ -68,7 +68,7 @@ Your data never leaves your browser.
 | Phase | Description |
 |-------|-------------|
 | 0 ✅ | Project scaffold and tooling |
-| 1 | Full data pipeline with mock data |
+| 1 ✅ | Full data pipeline with mock data |
 | 2 | 3D scene with interactions and UI |
 | 3 | LOD system, focus modes, performance |
 | 4 | Real data import (stats.fm + Spotify) |
