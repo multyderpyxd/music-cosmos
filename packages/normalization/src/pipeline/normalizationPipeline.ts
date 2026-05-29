@@ -37,17 +37,40 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
   const trackKeyToId = new Map<string, ReturnType<typeof trackId>>();
   const albumKeyToId = new Map<string, ReturnType<typeof albumId>>();
 
-  function getOrCreateArtist(name: string): ReturnType<typeof artistId> {
+  function resolveGenreId(hint: string | undefined): ReturnType<typeof genreId> {
+    if (!hint) return genreId(fallback);
+    const normalized = hint.toLowerCase().trim();
+    const resolved = aliasMap.get(normalized);
+    return resolved ? genreId(resolved) : genreId(fallback);
+  }
+
+  function ensureGenre(gId: ReturnType<typeof genreId>, name: string): void {
+    if (!genres.has(gId)) {
+      genres.set(gId, { id: gId, name, aliases: [], externalIds: {} });
+    }
+  }
+
+  function getOrCreateArtist(name: string, genreHint?: string): ReturnType<typeof artistId> {
     const key = normalizeArtistName(name);
     const existing = artistKeyToId.get(key);
-    if (existing !== undefined) return existing;
+    if (existing !== undefined) {
+      // If we now have a genre hint and the artist was previously assigned to fallback, upgrade it
+      if (genreHint) {
+        const artist = artists.get(existing);
+        if (artist && String(artist.primaryGenreId) === fallback) {
+          const gId = resolveGenreId(genreHint);
+          ensureGenre(gId, genreHint);
+          artist.primaryGenreId = gId;
+          artist.genreIds = [gId];
+        }
+      }
+      return existing;
+    }
 
     const id = artistId(`a:${key.replace(/\s+/g, '-')}`);
     artistKeyToId.set(key, id);
-    const gId = genreId(fallback);
-    if (!genres.has(gId)) {
-      genres.set(gId, { id: gId, name: 'Unknown', aliases: [], externalIds: {} });
-    }
+    const gId = resolveGenreId(genreHint);
+    ensureGenre(gId, genreHint ?? 'Unknown');
     artists.set(id, {
       id,
       name,
@@ -117,7 +140,7 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
 
   let eventCounter = 0;
   for (const rawEvent of raw.events) {
-    const aId = getOrCreateArtist(rawEvent.artistName);
+    const aId = getOrCreateArtist(rawEvent.artistName, rawEvent.genreHint);
     const alId = getOrCreateAlbum(rawEvent.albumTitle, aId);
     const tId = getOrCreateTrack(rawEvent, aId, alId);
 

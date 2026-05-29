@@ -7,6 +7,7 @@ export interface RawListeningEvent {
   playedAt: Date;
   durationPlayedMs: number;
   externalIds?: ExternalIds;
+  genreHint?: string;
 }
 
 export interface RawMusicData {

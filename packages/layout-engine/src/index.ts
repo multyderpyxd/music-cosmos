@@ -88,15 +88,18 @@ export function computeLayout(
     visualNodes.push(visualNode);
 
     if (node.entityType === 'star' || node.entityType === 'galaxy' || node.entityType === 'planet') {
+      // Focus distance scaled by entity type: stars need more room than planets
+      const focusMult = node.entityType === 'galaxy' ? 1.2 : node.entityType === 'star' ? 20 : 8;
+      const d = Math.max(5, node.visualProps.size * focusMult);
       cameraTargets.set(nodeId, {
         nodeId,
         position: {
-          x: position.x + (node.visualProps.size ?? 20) * 3,
-          y: position.y + (node.visualProps.size ?? 20) * 1.5,
-          z: position.z + (node.visualProps.size ?? 20) * 3,
+          x: position.x + d * 0.7,
+          y: position.y + d * 0.4,
+          z: position.z + d * 0.7,
         },
         lookAt: position,
-        distance: (node.visualProps.size ?? 20) * 3,
+        distance: d,
       });
     }
   }

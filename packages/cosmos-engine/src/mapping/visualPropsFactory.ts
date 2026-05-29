@@ -39,13 +39,15 @@ export function makeStarProps(
   const size = scaleByMethod(star.scale, value, range.min, range.max, star.minSize, star.maxSize);
   const recentPlays =
     star.brightnessMetric === 'playsLast30Days' ? stats.playsLast30Days : stats.playsLast90Days;
-  const decay = recencyDecay(stats.lastPlayedAt, now, 30);
-  const brightness = Math.min(1, 0.3 + 0.7 * decay) * Math.min(1, recentPlays / 10 + 0.2);
+  // Minimum floor of 0.55 so all stars stay visibly bright; recency modulates above that
+  const decay = recencyDecay(stats.lastPlayedAt, now, 90);
+  const recencyBoost = 0.55 + 0.45 * decay;
+  const activityBoost = Math.min(1, 0.4 + recentPlays / 20);
   const palette = rules.colorPalettes[star.colorPaletteId] ?? ['#FFF9C4'];
   const hex = palette[colorIndex % palette.length] ?? '#FFF9C4';
   return {
     size,
-    brightness: Math.max(0.2, Math.min(1, brightness)),
+    brightness: Math.min(1, recencyBoost * activityBoost),
     color: hexToRgb(hex),
     mass: size / star.maxSize,
   };
