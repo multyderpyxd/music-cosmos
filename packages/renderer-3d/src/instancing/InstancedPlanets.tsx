@@ -1,11 +1,8 @@
-import { useRef, useLayoutEffect, useMemo } from 'react';
+import { useLayoutEffect, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import type { ThreeEvent } from '@react-three/fiber';
 import type { VisualNode } from '@music-cosmos/layout-engine';
-
-const PLANET_BASE_SCALE = 1;
-const dummy = new THREE.Object3D();
-const tempColor = new THREE.Color();
 
 interface InstancedPlanetsProps {
   nodes: VisualNode[];
@@ -24,73 +21,88 @@ export function InstancedPlanets({
   onSelect,
   onHover,
 }: InstancedPlanetsProps) {
-  const meshRef = useRef<THREE.InstancedMesh>(null!);
   const nodeIds = useMemo(() => nodes.map((n) => n.id), [nodes]);
 
-  // Set colors once — they don't change per frame
-  useLayoutEffect(() => {
-    if (!meshRef.current || nodes.length === 0) return;
-    nodes.forEach((node, i) => {
-      const isHighlighted = node.id === selectedId || node.id === hoveredId;
-      tempColor.setRGB(
-        node.visualProps.color[0] * (isHighlighted ? 1.4 : 0.9),
-        node.visualProps.color[1] * (isHighlighted ? 1.4 : 0.9),
-        node.visualProps.color[2] * (isHighlighted ? 1.4 : 1.2),
-      );
-      meshRef.current.setColorAt(i, tempColor);
+  const mesh = useMemo(() => {
+    if (nodes.length === 0) return null;
+    const geo = new THREE.SphereGeometry(1, 14, 14);
+    const mat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.6,
+      metalness: 0.1,
+      toneMapped: false,
     });
-    if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-  }, [nodes, selectedId, hoveredId]);
+    const m = new THREE.InstancedMesh(geo, mat, nodes.length);
+    m.instanceColor = new THREE.InstancedBufferAttribute(
+      new Float32Array(nodes.length * 3).fill(1.0),
+      3,
+    );
+    return m;
+  }, [nodes.length]);
 
-  // Update orbital positions every frame
+  useEffect(() => {
+    return () => {
+      mesh?.geometry.dispose();
+      if (mesh) (mesh.material as THREE.Material).dispose();
+    };
+  }, [mesh]);
+
+  useLayoutEffect(() => {
+    if (!mesh || nodes.length === 0) return;
+    const c = new THREE.Color();
+    nodes.forEach((node, i) => {
+      const hi = node.id === selectedId || node.id === hoveredId;
+      c.setRGB(
+        node.visualProps.color[0] * (hi ? 1.4 : 1.0),
+        node.visualProps.color[1] * (hi ? 1.4 : 1.0),
+        node.visualProps.color[2] * (hi ? 1.4 : 1.2),
+      );
+      mesh.setColorAt(i, c);
+    });
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  }, [mesh, nodes, selectedId, hoveredId]);
+
   useFrame(({ clock }) => {
-    if (!meshRef.current || nodes.length === 0) return;
+    if (!mesh || nodes.length === 0) return;
     const t = clock.elapsedTime;
+    const d = new THREE.Object3D();
     nodes.forEach((node, i) => {
       const parent = node.parentId ? parentPositions.get(node.parentId) : undefined;
       const px = parent?.[0] ?? node.position.x;
       const py = parent?.[1] ?? node.position.y;
       const pz = parent?.[2] ?? node.position.z;
-
-      const r = node.visualProps.orbitRadius ?? 0;
+      const r = node.visualProps.orbitRadius ?? 10;
       const phase = node.visualProps.orbitPhase ?? 0;
       const speed = node.visualProps.orbitSpeed ?? 0.1;
-      const isHighlighted = node.id === selectedId || node.id === hoveredId;
-
-      dummy.position.set(
+      const hi = node.id === selectedId || node.id === hoveredId;
+      d.position.set(
         px + r * Math.cos(phase + t * speed),
         py,
         pz + r * Math.sin(phase + t * speed),
       );
-      dummy.scale.setScalar(
-        node.visualProps.size * PLANET_BASE_SCALE * (isHighlighted ? 1.6 : 1),
-      );
-      dummy.updateMatrix();
-      meshRef.current.setMatrixAt(i, dummy.matrix);
+      d.scale.setScalar(node.visualProps.size * (hi ? 1.8 : 1));
+      d.updateMatrix();
+      mesh.setMatrixAt(i, d.matrix);
     });
-    meshRef.current.instanceMatrix.needsUpdate = true;
+    mesh.instanceMatrix.needsUpdate = true;
   });
 
-  if (nodes.length === 0) return null;
+  if (!mesh) return null;
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[undefined, undefined, nodes.length]}
-      onClick={(e) => {
+    <primitive
+      object={mesh}
+      onClick={(e: ThreeEvent<MouseEvent>) => {
         e.stopPropagation();
         const id = nodeIds[e.instanceId ?? -1];
         if (id) onSelect(id);
       }}
-      onPointerOver={(e) => {
+      onPointerOver={(e: ThreeEvent<PointerEvent>) => {
         e.stopPropagation();
         const id = nodeIds[e.instanceId ?? -1];
         if (id) onHover(id);
       }}
       onPointerOut={() => onHover(null)}
-    >
-      <sphereGeometry args={[1, 12, 12]} />
-      <meshStandardMaterial vertexColors roughness={0.7} metalness={0.1} />
-    </instancedMesh>
+    />
   );
 }

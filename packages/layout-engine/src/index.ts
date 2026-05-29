@@ -87,15 +87,29 @@ export function computeLayout(
     const visualNode: VisualNode = { ...node, position, lod };
     visualNodes.push(visualNode);
 
-    if (node.entityType === 'star' || node.entityType === 'galaxy' || node.entityType === 'planet') {
-      // Focus distance scaled by entity type: stars need more room than planets
-      const focusMult = node.entityType === 'galaxy' ? 1.2 : node.entityType === 'star' ? 20 : 8;
-      const d = Math.max(5, node.visualProps.size * focusMult);
+    // Camera targets for galaxy, star, planet, and satellite
+    if (
+      node.entityType === 'star' ||
+      node.entityType === 'galaxy' ||
+      node.entityType === 'planet' ||
+      node.entityType === 'satellite'
+    ) {
+      // d = how far the camera should sit from the entity centre
+      // Galaxy: far enough to see the whole disc
+      // Star: far enough to see all orbiting planets (maxOrbitRadius ~30)
+      // Planet: far enough to see all satellites (maxOrbitRadius ~4)
+      // Satellite: very close
+      const d =
+        node.entityType === 'galaxy'   ? Math.max(120, node.visualProps.size * 2.5) :
+        node.entityType === 'star'     ? 90 :
+        node.entityType === 'planet'   ? 14 :
+        /* satellite */                  4;
+
       cameraTargets.set(nodeId, {
         nodeId,
         position: {
           x: position.x + d * 0.7,
-          y: position.y + d * 0.4,
+          y: position.y + d * 0.5,
           z: position.z + d * 0.7,
         },
         lookAt: position,

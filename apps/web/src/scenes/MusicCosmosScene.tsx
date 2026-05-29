@@ -62,6 +62,13 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
     return [ct.position.x, ct.position.y, ct.position.z] as const;
   }, [selectedNode, scene]);
 
+  const cameraLookAt = useMemo<readonly [number, number, number] | undefined>(() => {
+    if (!selectedNode) return undefined;
+    const ct = scene.cameraTargets.get(selectedNode.id);
+    if (!ct) return undefined;
+    return [ct.lookAt.x, ct.lookAt.y, ct.lookAt.z] as const;
+  }, [selectedNode, scene]);
+
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
@@ -83,6 +90,7 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
         selectedId={selectedEntityId}
         hoveredId={hoveredEntityId}
         cameraTarget={cameraTarget}
+        cameraLookAt={cameraLookAt}
         onSelect={selectEntity}
         onHover={setHoveredEntity}
         onBackground={() => selectEntity(null)}
