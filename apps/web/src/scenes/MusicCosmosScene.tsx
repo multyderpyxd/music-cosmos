@@ -1,11 +1,12 @@
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useEffect } from 'react';
 import { CosmosCanvas } from '@music-cosmos/renderer-3d';
-import { EntityPanel, ViewModeSelector, SearchBar, VisualLegend, HoverTooltip } from '@music-cosmos/ui';
+import { EntityPanel, SearchBar, VisualLegend, HoverTooltip } from '@music-cosmos/ui';
 import type { EntityDisplay } from '@music-cosmos/ui';
 import { useUIStore } from '../stores/ui-store.js';
 import { useCosmosStore } from '../stores/cosmos-store.js';
 import type { VisualScene, VisualNode } from '@music-cosmos/layout-engine';
 import type { ListeningStats } from '@music-cosmos/domain';
+import { EntityTypeToggles } from '../components/EntityTypeToggles.js';
 
 interface MusicCosmosSceneProps {
   scene: VisualScene;
@@ -31,29 +32,28 @@ function toEntityDisplay(node: VisualNode): EntityDisplay {
 }
 
 export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
-  const selectedEntityId = useUIStore((s) => s.selectedEntityId);
-  const hoveredEntityId  = useUIStore((s) => s.hoveredEntityId);
-  const viewMode         = useUIStore((s) => s.viewMode);
-  const searchQuery      = useUIStore((s) => s.searchQuery);
-  const isTrackingEntity = useUIStore((s) => s.isTrackingEntity);
-  const isPaused         = useUIStore((s) => s.isPaused);
-  const selectEntity     = useUIStore((s) => s.selectEntity);
-  const setHoveredEntity = useUIStore((s) => s.setHoveredEntity);
-  const setViewMode      = useUIStore((s) => s.setViewMode);
-  const setSearchQuery   = useUIStore((s) => s.setSearchQuery);
-  const setTracking      = useUIStore((s) => s.setTracking);
-  const togglePause      = useUIStore((s) => s.togglePause);
-  const recomputeScene   = useCosmosStore((s) => s.recomputeScene);
-  const rawData          = useCosmosStore((s) => s.rawData);
+  const selectedEntityId       = useUIStore((s) => s.selectedEntityId);
+  const hoveredEntityId        = useUIStore((s) => s.hoveredEntityId);
+  const searchQuery            = useUIStore((s) => s.searchQuery);
+  const isTrackingEntity       = useUIStore((s) => s.isTrackingEntity);
+  const isPaused               = useUIStore((s) => s.isPaused);
+  const activeEntityTypes      = useUIStore((s) => s.activeEntityTypes);
+  const galaxyParticleOpacity  = useUIStore((s) => s.galaxyParticleOpacity);
+  const selectEntity           = useUIStore((s) => s.selectEntity);
+  const setHoveredEntity       = useUIStore((s) => s.setHoveredEntity);
+  const setSearchQuery         = useUIStore((s) => s.setSearchQuery);
+  const setTracking            = useUIStore((s) => s.setTracking);
+  const togglePause            = useUIStore((s) => s.togglePause);
+  const toggleEntityType       = useUIStore((s) => s.toggleEntityType);
+  const setGalaxyParticleOpacity = useUIStore((s) => s.setGalaxyParticleOpacity);
+  const rawData                = useCosmosStore((s) => s.rawData);
 
   const statsMap = useMemo<Map<string, ListeningStats>>(() => new Map(), [rawData]);
-
   const nodeById = useMemo(() => new Map(scene.nodes.map((n) => [n.id, n])), [scene]);
 
   const selectedNode = selectedEntityId ? (nodeById.get(selectedEntityId) ?? null) : null;
   const hoveredNode  = hoveredEntityId  ? (nodeById.get(hoveredEntityId)  ?? null) : null;
 
-  // Enable tracking when a planet or satellite is selected
   useEffect(() => {
     if (!selectedNode) { setTracking(false); return; }
     setTracking(TRACKING_TYPES.has(selectedNode.entityType));
@@ -62,7 +62,6 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
   const selectedDisplay = selectedNode ? toEntityDisplay(selectedNode) : null;
   const selectedStats   = selectedNode ? statsMap.get(selectedNode.domainId) : undefined;
 
-  // cameraTarget only used for non-tracking entities (stars, galaxies)
   const cameraTarget = useMemo<readonly [number, number, number] | undefined>(() => {
     if (!selectedNode || TRACKING_TYPES.has(selectedNode.entityType)) return undefined;
     const ct = scene.cameraTargets.get(selectedNode.id);
@@ -86,13 +85,7 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
       .slice(0, 20);
   }, [searchQuery, scene]);
 
-  // Camera tracking distance: satellites need to be closer than planets
   const trackingDistance = selectedNode?.entityType === 'satellite' ? 4 : 12;
-
-  const handleViewModeChange = useCallback((mode: typeof viewMode) => {
-    setViewMode(mode);
-    recomputeScene(mode);
-  }, [setViewMode, recomputeScene]);
 
   return (
     <>
@@ -105,6 +98,8 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
         isTrackingEntity={isTrackingEntity}
         trackingDistance={trackingDistance}
         isPaused={isPaused}
+        activeEntityTypes={activeEntityTypes}
+        galaxyParticleOpacity={galaxyParticleOpacity}
         onSelect={selectEntity}
         onHover={setHoveredEntity}
         onBackground={() => selectEntity(null)}
@@ -115,67 +110,53 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
 
       <EntityPanel entity={selectedDisplay} stats={selectedStats} onClose={() => selectEntity(null)} />
 
-      <ViewModeSelector current={viewMode} onChange={handleViewModeChange} />
+      {/* Entity type visibility toggles + galaxy particle opacity */}
+      <EntityTypeToggles
+        activeTypes={activeEntityTypes}
+        onToggle={toggleEntityType}
+        galaxyParticleOpacity={galaxyParticleOpacity}
+        onParticleOpacityChange={setGalaxyParticleOpacity}
+      />
 
       <VisualLegend />
 
       <HoverTooltip label={hoveredNode?.label ?? null} entityType={hoveredNode?.entityType} />
 
-      {/* Pause / resume all orbital motion */}
+      {/* Pause / resume orbital motion */}
       <button
         onClick={togglePause}
-        title={isPaused ? 'Resume motion' : 'Pause motion (easier to select bodies)'}
+        title={isPaused ? 'Resume motion' : 'Pause motion'}
         style={{
-          position: 'absolute',
-          bottom: 24,
-          right: 24,
-          width: 42,
-          height: 42,
-          borderRadius: '50%',
-          background: isPaused
-            ? 'rgba(52, 211, 153, 0.25)'
-            : 'rgba(5, 5, 20, 0.82)',
-          border: isPaused
-            ? '1px solid rgba(52, 211, 153, 0.7)'
-            : '1px solid #1e1e3f',
+          position: 'absolute', bottom: 24, right: 24,
+          width: 42, height: 42, borderRadius: '50%',
+          background: isPaused ? 'rgba(52,211,153,0.25)' : 'rgba(5,5,20,0.82)',
+          border: isPaused ? '1px solid rgba(52,211,153,0.7)' : '1px solid #1e1e3f',
           color: isPaused ? '#6ee7b7' : '#555',
-          fontSize: 18,
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backdropFilter: 'blur(10px)',
-          zIndex: 100,
+          fontSize: 18, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(10px)', zIndex: 100,
           boxShadow: isPaused ? '0 2px 12px rgba(52,211,153,0.2)' : 'none',
-          transition: 'all 0.15s ease',
+          transition: 'all 0.2s ease',
         }}
       >
         {isPaused ? '▶' : '⏸'}
       </button>
 
-      {/* Unfix button — visible only when camera is locked to an orbiting body */}
+      {/* Unfix camera — only shown when tracking an orbiting body */}
       {isTrackingEntity && (
         <button
           onClick={() => setTracking(false)}
           style={{
-            position: 'absolute',
-            bottom: 90,
-            left: '50%',
+            position: 'absolute', bottom: 90, left: '50%',
             transform: 'translateX(-50%)',
-            background: 'rgba(107, 72, 255, 0.25)',
-            border: '1px solid rgba(107, 72, 255, 0.7)',
-            borderRadius: 20,
-            padding: '7px 18px',
-            color: '#c4b5fd',
-            fontSize: 12,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 7,
+            background: 'rgba(107,72,255,0.25)',
+            border: '1px solid rgba(107,72,255,0.7)',
+            borderRadius: 20, padding: '7px 18px',
+            color: '#c4b5fd', fontSize: 12, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 7,
             backdropFilter: 'blur(10px)',
             fontFamily: 'system-ui, -apple-system, sans-serif',
-            letterSpacing: 0.5,
-            zIndex: 100,
+            letterSpacing: 0.5, zIndex: 100,
             boxShadow: '0 2px 12px rgba(107,72,255,0.25)',
           }}
         >

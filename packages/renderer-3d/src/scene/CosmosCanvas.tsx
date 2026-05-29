@@ -14,6 +14,8 @@ interface CosmosCanvasProps {
   isTrackingEntity?: boolean;
   trackingDistance?: number;
   isPaused?: boolean;
+  activeEntityTypes: Set<string>;
+  galaxyParticleOpacity: number;
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
   onBackground?: () => void;
@@ -29,6 +31,8 @@ export function CosmosCanvas({
   isTrackingEntity,
   trackingDistance,
   isPaused = false,
+  activeEntityTypes,
+  galaxyParticleOpacity,
   onSelect,
   onHover,
   onBackground,
@@ -69,6 +73,8 @@ export function CosmosCanvas({
         onHover={onHover}
         trackedPositionRef={trackedPositionRef}
         isPaused={isPaused}
+        activeEntityTypes={activeEntityTypes}
+        galaxyParticleOpacity={galaxyParticleOpacity}
       />
     </Canvas>
   );

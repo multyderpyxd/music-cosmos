@@ -10,6 +10,7 @@ interface AnimatedPlanetProps {
   isSelected: boolean;
   isHovered: boolean;
   isPaused: boolean;
+  dimmed: boolean;
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
   onLivePosition?: (pos: THREE.Vector3) => void;
@@ -23,12 +24,15 @@ export function AnimatedPlanet({
   isSelected,
   isHovered,
   isPaused,
+  dimmed,
   onSelect,
   onHover,
   onLivePosition,
 }: AnimatedPlanetProps) {
   const meshRef = useRef<THREE.Mesh>(null!);
-  const frozenT = useRef<number | null>(null);
+  const accTime = useRef(0);
+  const speedScale = useRef(1);
+  const prevClock = useRef<number | null>(null);
 
   const color = useMemo(
     () => new THREE.Color(node.visualProps.color[0], node.visualProps.color[1], node.visualProps.color[2]),
@@ -39,17 +43,19 @@ export function AnimatedPlanet({
   const r     = node.visualProps.orbitRadius ?? 10;
   const phase = node.visualProps.orbitPhase  ?? 0;
   const speed = node.visualProps.orbitSpeed  ?? 0.1;
-  const size  = node.visualProps.size * ((isSelected || isHovered) ? 1.8 : 1);
+  // Hover enlarges; selecting returns to normal size
+  const size  = node.visualProps.size * (isHovered && !isSelected ? 1.4 : 1);
+  const opacity = dimmed ? 0.14 : 1;
 
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
-    if (isPaused) {
-      // Freeze: record the time at which we paused and hold position
-      if (frozenT.current === null) frozenT.current = clock.elapsedTime;
-    } else {
-      frozenT.current = null;
-    }
-    const t = frozenT.current ?? clock.elapsedTime;
+    const elapsed = clock.elapsedTime;
+    const dt = prevClock.current !== null ? elapsed - prevClock.current : 0;
+    prevClock.current = elapsed;
+    // Smooth deceleration/acceleration: lerp speed scale toward 0 or 1
+    speedScale.current = THREE.MathUtils.lerp(speedScale.current, isPaused ? 0 : 1, 0.07);
+    accTime.current += dt * speedScale.current;
+    const t = accTime.current;
     const x = starPosition[0] + r * Math.cos(phase + t * speed);
     const y = starPosition[1];
     const z = starPosition[2] + r * Math.sin(phase + t * speed);
@@ -71,6 +77,8 @@ export function AnimatedPlanet({
         emissiveIntensity={0.15}
         roughness={0.6}
         metalness={0.1}
+        transparent
+        opacity={opacity}
       />
     </mesh>
   );

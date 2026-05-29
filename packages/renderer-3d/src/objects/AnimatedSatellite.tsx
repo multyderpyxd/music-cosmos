@@ -13,6 +13,7 @@ interface AnimatedSatelliteProps {
   isSelected: boolean;
   isHovered: boolean;
   isPaused: boolean;
+  dimmed: boolean;
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
   onLivePosition?: (pos: THREE.Vector3) => void;
@@ -29,12 +30,15 @@ export function AnimatedSatellite({
   isSelected,
   isHovered,
   isPaused,
+  dimmed,
   onSelect,
   onHover,
   onLivePosition,
 }: AnimatedSatelliteProps) {
   const meshRef = useRef<THREE.Mesh>(null!);
-  const frozenT = useRef<number | null>(null);
+  const accTime = useRef(0);
+  const speedScale = useRef(1);
+  const prevClock = useRef<number | null>(null);
 
   const color = useMemo(
     () => new THREE.Color(node.visualProps.color[0], node.visualProps.color[1], node.visualProps.color[2]),
@@ -42,23 +46,26 @@ export function AnimatedSatellite({
     [node.visualProps.color[0], node.visualProps.color[1], node.visualProps.color[2]],
   );
 
-  const r     = node.visualProps.orbitRadius ?? 1.5;
-  const phase = node.visualProps.orbitPhase  ?? 0;
-  const speed = node.visualProps.orbitSpeed  ?? 1;
-  const size  = node.visualProps.size * ((isSelected || isHovered) ? 2.5 : 1);
+  const r      = node.visualProps.orbitRadius ?? 1.5;
+  const phase  = node.visualProps.orbitPhase  ?? 0;
+  const speed  = node.visualProps.orbitSpeed  ?? 1;
+  const size   = node.visualProps.size * (isHovered && !isSelected ? 2.0 : 1);
   const brightness = Math.max(0.6, node.visualProps.brightness);
+  const opacity = dimmed ? 0.12 : 1;
 
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
-    if (isPaused) {
-      if (frozenT.current === null) frozenT.current = clock.elapsedTime;
-    } else {
-      frozenT.current = null;
-    }
-    const t = frozenT.current ?? clock.elapsedTime;
+    const elapsed = clock.elapsedTime;
+    const dt = prevClock.current !== null ? elapsed - prevClock.current : 0;
+    prevClock.current = elapsed;
+    speedScale.current = THREE.MathUtils.lerp(speedScale.current, isPaused ? 0 : 1, 0.07);
+    accTime.current += dt * speedScale.current;
+    const t = accTime.current;
+
     const px = starPosition[0] + planetOrbitRadius * Math.cos(planetOrbitPhase + t * planetOrbitSpeed);
     const py = starPosition[1];
     const pz = starPosition[2] + planetOrbitRadius * Math.sin(planetOrbitPhase + t * planetOrbitSpeed);
+
     const x = px + r * Math.cos(phase + t * speed);
     const y = py + r * 0.15 * Math.sin(phase * 2 + t * speed * 0.7);
     const z = pz + r * Math.sin(phase + t * speed);
@@ -80,6 +87,8 @@ export function AnimatedSatellite({
           node.visualProps.color[1] * brightness,
           node.visualProps.color[2] * brightness,
         )}
+        transparent
+        opacity={opacity}
       />
     </mesh>
   );

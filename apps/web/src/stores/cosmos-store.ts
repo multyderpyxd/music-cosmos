@@ -36,7 +36,7 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const raw = await new MockDataAdapter().load();
-      const scene = await buildScene(raw, 'universe');
+      const scene = await buildScene(raw, 'album');
       set({ rawData: raw, scene, isLoading: false });
     } catch (e) {
       set({ error: String(e), isLoading: false });
@@ -59,7 +59,7 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
         throw new Error('Unsupported file type. Please use a JSON export from stats.fm or Spotify.');
       }
       const raw = await adapter.load(content);
-      const scene = await buildScene(raw, 'universe');
+      const scene = await buildScene(raw, 'album');
       set({ rawData: raw, scene, isLoading: false });
     } catch (e) {
       set({ error: String(e), isLoading: false });

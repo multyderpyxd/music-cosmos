@@ -15,9 +15,21 @@ interface CosmosSceneProps {
   onHover: (nodeId: string | null) => void;
   trackedPositionRef?: React.MutableRefObject<THREE.Vector3 | null>;
   isPaused: boolean;
+  activeEntityTypes: Set<string>;
+  galaxyParticleOpacity: number;
 }
 
-export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover, trackedPositionRef, isPaused }: CosmosSceneProps) {
+export function CosmosScene({
+  scene,
+  selectedId,
+  hoveredId,
+  onSelect,
+  onHover,
+  trackedPositionRef,
+  isPaused,
+  activeEntityTypes,
+  galaxyParticleOpacity,
+}: CosmosSceneProps) {
   const { galaxies, stars, planets, satellites, asteroidBelts } = useMemo(() => {
     const galaxies: VisualNode[] = [];
     const stars: VisualNode[] = [];
@@ -35,6 +47,12 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover, t
     }
     return { galaxies, stars, planets, satellites, asteroidBelts };
   }, [scene]);
+
+  // Visibility filter: empty set = show all; non-empty = show only selected types
+  const visible = (type: string) =>
+    activeEntityTypes.size === 0 || activeEntityTypes.has(type);
+
+  const hasSelection = selectedId !== null;
 
   const positionMap = useMemo(() => {
     const m = new Map<string, readonly [number, number, number]>();
@@ -54,24 +72,28 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover, t
     <>
       <StarField count={2000} radius={1500} />
 
-      {galaxies.map((node) => (
+      {visible('galaxy') && galaxies.map((node) => (
         <GalaxyObject
           key={node.id}
           node={node}
           isSelected={node.id === selectedId}
+          particleOpacity={galaxyParticleOpacity}
+          dimmed={hasSelection && node.id !== selectedId}
           onClick={() => onSelect(node.id)}
         />
       ))}
 
-      <StarPoints
-        nodes={stars}
-        selectedId={selectedId}
-        hoveredId={hoveredId}
-        onSelect={onSelect}
-        onHover={onHover}
-      />
+      {visible('star') && (
+        <StarPoints
+          nodes={stars}
+          selectedId={selectedId}
+          hoveredId={hoveredId}
+          onSelect={onSelect}
+          onHover={onHover}
+        />
+      )}
 
-      {planets.map((node) => {
+      {visible('planet') && planets.map((node) => {
         const starPos = node.parentId ? positionMap.get(node.parentId) : undefined;
         const sp: readonly [number, number, number] = starPos ?? [node.position.x, node.position.y, node.position.z];
         const isSelected = node.id === selectedId;
@@ -83,6 +105,7 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover, t
             isSelected={isSelected}
             isHovered={node.id === hoveredId}
             isPaused={isPaused}
+            dimmed={hasSelection && !isSelected}
             onSelect={onSelect}
             onHover={onHover}
             onLivePosition={isSelected ? handleLivePosition : undefined}
@@ -97,6 +120,7 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover, t
           ? [grandparentStar.position.x, grandparentStar.position.y, grandparentStar.position.z] as const
           : [node.position.x, node.position.y, node.position.z] as const;
         const isSelected = node.id === selectedId;
+        if (!visible('satellite')) return null;
         return (
           <AnimatedSatellite
             key={node.id}
@@ -108,6 +132,7 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover, t
             isSelected={isSelected}
             isHovered={node.id === hoveredId}
             isPaused={isPaused}
+            dimmed={hasSelection && !isSelected}
             onSelect={onSelect}
             onHover={onHover}
             onLivePosition={isSelected ? handleLivePosition : undefined}
