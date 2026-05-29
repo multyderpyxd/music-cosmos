@@ -53,12 +53,31 @@
 - [ ] SpotifyMetadataAdapter (optional, isolated)
 - [ ] Privacy documentation
 
-## v0.6 — Polish
-- [ ] Bloom post-processing
-- [ ] Camera animation transitions
-- [ ] Keyboard navigation
-- [ ] URL-based state (seed, selected entity)
+## v0.6 — Visual Polish (deferred, design-heavy)
+> Note: Visual improvements are intentionally deferred. The architecture supports them without refactoring.
+
+- [ ] Bloom / glow post-processing (@react-three/postprocessing)
+- [ ] Star sprite textures (circular gradient, softer look than sphere geometry)
+- [ ] Galaxy particle shaders (animated swirl, arm structure, nebula glow)
+- [ ] Planet textures / atmosphere halo
+- [ ] Satellite trail effect (short comet-like tail on fast-orbiting moons)
+- [ ] Ambient occlusion and depth-of-field for focused views
+- [ ] Smooth camera animation curves (easing functions, not linear lerp)
+- [ ] Keyboard navigation (arrow keys to cycle entities, Escape to deselect)
+- [ ] URL-based state (seed, selected entity, view mode)
 - [ ] Mobile-responsive UI overlay
+
+## v0.7 — Entity Sidebar Panel
+> Requested: when an artist or album is selected, show a scrollable list on the right
+> of all child entities (albums for artist, tracks for album) with a miniature
+> celestial body preview as reference thumbnail and the entity name.
+> Clicking any list item focuses the camera on that entity.
+
+- [ ] `EntityChildList` component — scrollable right panel
+- [ ] Miniature orbit preview (canvas-in-canvas or SVG placeholder thumbnail)
+- [ ] Entity name, play count, last played date per list item
+- [ ] Click-to-focus: selecting a list item calls `selectEntity(nodeId)` → camera focus
+- [ ] Auto-switches view mode to artist when artist selected, album when album selected
 
 ## Future (v1.0+)
 - [ ] Comets (intense short-term listening)

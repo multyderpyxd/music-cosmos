@@ -16,7 +16,10 @@ interface AnimatedSatelliteProps {
   isHovered: boolean;
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
+  onLivePosition?: (pos: THREE.Vector3) => void;
 }
+
+const _tmp = new THREE.Vector3();
 
 export function AnimatedSatellite({
   node,
@@ -28,6 +31,7 @@ export function AnimatedSatellite({
   isHovered,
   onSelect,
   onHover,
+  onLivePosition,
 }: AnimatedSatelliteProps) {
   const meshRef = useRef<THREE.Mesh>(null!);
 
@@ -56,11 +60,11 @@ export function AnimatedSatellite({
     const pz = starPosition[2] + planetOrbitRadius * Math.sin(planetOrbitPhase + t * planetOrbitSpeed);
 
     // Satellite orbits around the planet's live position
-    meshRef.current.position.set(
-      px + r * Math.cos(phase + t * speed),
-      py + r * 0.15 * Math.sin(phase * 2 + t * speed * 0.7),
-      pz + r * Math.sin(phase + t * speed),
-    );
+    const x = px + r * Math.cos(phase + t * speed);
+    const y = py + r * 0.15 * Math.sin(phase * 2 + t * speed * 0.7);
+    const z = pz + r * Math.sin(phase + t * speed);
+    meshRef.current.position.set(x, y, z);
+    if (onLivePosition) onLivePosition(_tmp.set(x, y, z));
   });
 
   const brightness = Math.max(0.6, node.visualProps.brightness);

@@ -11,7 +11,10 @@ interface AnimatedPlanetProps {
   isHovered: boolean;
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
+  onLivePosition?: (pos: THREE.Vector3) => void;
 }
+
+const _tmp = new THREE.Vector3();
 
 export function AnimatedPlanet({
   node,
@@ -20,6 +23,7 @@ export function AnimatedPlanet({
   isHovered,
   onSelect,
   onHover,
+  onLivePosition,
 }: AnimatedPlanetProps) {
   const meshRef = useRef<THREE.Mesh>(null!);
 
@@ -37,11 +41,11 @@ export function AnimatedPlanet({
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
     const t = clock.elapsedTime;
-    meshRef.current.position.set(
-      starPosition[0] + r * Math.cos(phase + t * speed),
-      starPosition[1],
-      starPosition[2] + r * Math.sin(phase + t * speed),
-    );
+    const x = starPosition[0] + r * Math.cos(phase + t * speed);
+    const y = starPosition[1];
+    const z = starPosition[2] + r * Math.sin(phase + t * speed);
+    meshRef.current.position.set(x, y, z);
+    if (onLivePosition) onLivePosition(_tmp.set(x, y, z));
   });
 
   return (

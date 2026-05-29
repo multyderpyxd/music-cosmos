@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect } from 'react';
 import { CosmosCanvas } from '@music-cosmos/renderer-3d';
 import { EntityPanel, ViewModeSelector, SearchBar, VisualLegend, HoverTooltip } from '@music-cosmos/ui';
 import type { EntityDisplay } from '@music-cosmos/ui';
@@ -10,6 +10,8 @@ import type { ListeningStats } from '@music-cosmos/domain';
 interface MusicCosmosSceneProps {
   scene: VisualScene;
 }
+
+const TRACKING_TYPES = new Set(['planet', 'satellite']);
 
 function toEntityDisplay(node: VisualNode): EntityDisplay {
   return {
@@ -33,37 +35,41 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
   const hoveredEntityId  = useUIStore((s) => s.hoveredEntityId);
   const viewMode         = useUIStore((s) => s.viewMode);
   const searchQuery      = useUIStore((s) => s.searchQuery);
+  const isTrackingEntity = useUIStore((s) => s.isTrackingEntity);
   const selectEntity     = useUIStore((s) => s.selectEntity);
   const setHoveredEntity = useUIStore((s) => s.setHoveredEntity);
   const setViewMode      = useUIStore((s) => s.setViewMode);
   const setSearchQuery   = useUIStore((s) => s.setSearchQuery);
+  const setTracking      = useUIStore((s) => s.setTracking);
   const recomputeScene   = useCosmosStore((s) => s.recomputeScene);
   const rawData          = useCosmosStore((s) => s.rawData);
 
-  // Build stats map from raw data via cosmos-store dataset
-  const statsMap = useMemo<Map<string, ListeningStats>>(() => {
-    // The dataset inside cosmos-store holds stats; we access it indirectly via rawData
-    // For now, return empty — stats will be wired in Phase 3 via a dataset ref in cosmos-store
-    return new Map();
-  }, [rawData]);
+  const statsMap = useMemo<Map<string, ListeningStats>>(() => new Map(), [rawData]);
 
   const nodeById = useMemo(() => new Map(scene.nodes.map((n) => [n.id, n])), [scene]);
 
   const selectedNode = selectedEntityId ? (nodeById.get(selectedEntityId) ?? null) : null;
   const hoveredNode  = hoveredEntityId  ? (nodeById.get(hoveredEntityId)  ?? null) : null;
 
+  // Enable tracking when a planet or satellite is selected
+  useEffect(() => {
+    if (!selectedNode) { setTracking(false); return; }
+    setTracking(TRACKING_TYPES.has(selectedNode.entityType));
+  }, [selectedNode, setTracking]);
+
   const selectedDisplay = selectedNode ? toEntityDisplay(selectedNode) : null;
   const selectedStats   = selectedNode ? statsMap.get(selectedNode.domainId) : undefined;
 
+  // cameraTarget only used for non-tracking entities (stars, galaxies)
   const cameraTarget = useMemo<readonly [number, number, number] | undefined>(() => {
-    if (!selectedNode) return undefined;
+    if (!selectedNode || TRACKING_TYPES.has(selectedNode.entityType)) return undefined;
     const ct = scene.cameraTargets.get(selectedNode.id);
     if (!ct) return undefined;
     return [ct.position.x, ct.position.y, ct.position.z] as const;
   }, [selectedNode, scene]);
 
   const cameraLookAt = useMemo<readonly [number, number, number] | undefined>(() => {
-    if (!selectedNode) return undefined;
+    if (!selectedNode || TRACKING_TYPES.has(selectedNode.entityType)) return undefined;
     const ct = scene.cameraTargets.get(selectedNode.id);
     if (!ct) return undefined;
     return [ct.lookAt.x, ct.lookAt.y, ct.lookAt.z] as const;
@@ -91,28 +97,52 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
         hoveredId={hoveredEntityId}
         cameraTarget={cameraTarget}
         cameraLookAt={cameraLookAt}
+        isTrackingEntity={isTrackingEntity}
         onSelect={selectEntity}
         onHover={setHoveredEntity}
         onBackground={() => selectEntity(null)}
+        onCameraFree={() => setTracking(false)}
       />
 
-      <SearchBar
-        results={searchResults}
-        onSearch={setSearchQuery}
-        onSelect={selectEntity}
-      />
+      <SearchBar results={searchResults} onSearch={setSearchQuery} onSelect={selectEntity} />
 
-      <EntityPanel
-        entity={selectedDisplay}
-        stats={selectedStats}
-        onClose={() => selectEntity(null)}
-      />
+      <EntityPanel entity={selectedDisplay} stats={selectedStats} onClose={() => selectEntity(null)} />
 
       <ViewModeSelector current={viewMode} onChange={handleViewModeChange} />
 
       <VisualLegend />
 
       <HoverTooltip label={hoveredNode?.label ?? null} entityType={hoveredNode?.entityType} />
+
+      {/* Unfix button — visible only when camera is locked to an orbiting body */}
+      {isTrackingEntity && (
+        <button
+          onClick={() => setTracking(false)}
+          style={{
+            position: 'absolute',
+            bottom: 90,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(107, 72, 255, 0.25)',
+            border: '1px solid rgba(107, 72, 255, 0.7)',
+            borderRadius: 20,
+            padding: '7px 18px',
+            color: '#c4b5fd',
+            fontSize: 12,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            backdropFilter: 'blur(10px)',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            letterSpacing: 0.5,
+            zIndex: 100,
+            boxShadow: '0 2px 12px rgba(107,72,255,0.25)',
+          }}
+        >
+          🔓 Unfix camera
+        </button>
+      )}
 
       <div style={{
         position: 'absolute', top: 16, left: 16,
