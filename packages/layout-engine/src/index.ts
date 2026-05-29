@@ -103,7 +103,7 @@ export function computeLayout(
         node.entityType === 'galaxy'   ? Math.max(120, node.visualProps.size * 2.5) :
         node.entityType === 'star'     ? 90 :
         node.entityType === 'planet'   ? 14 :
-        /* satellite */                  4;
+        /* satellite */                  6;
 
       cameraTargets.set(nodeId, {
         nodeId,

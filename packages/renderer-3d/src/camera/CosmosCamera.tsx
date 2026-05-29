@@ -8,16 +8,16 @@ interface CosmosCameraProps {
   targetPosition?: readonly [number, number, number];
   lookAtPosition?: readonly [number, number, number];
   isTrackingEntity?: boolean;
+  trackingDistance?: number;
   trackedPositionRef?: React.MutableRefObject<THREE.Vector3 | null>;
   onCameraFree?: () => void;
 }
-
-const DEFAULT_TRACK_OFFSET = new THREE.Vector3(14, 7, 14);
 
 export function CosmosCamera({
   targetPosition,
   lookAtPosition,
   isTrackingEntity,
+  trackingDistance = 12,
   trackedPositionRef,
   onCameraFree,
 }: CosmosCameraProps) {
@@ -58,11 +58,12 @@ export function CosmosCamera({
     if (isTrackingEntity && trackedPositionRef?.current) {
       const tracked = trackedPositionRef.current;
 
-      // On the first frame entering tracking: if camera is far, snap near the body
+      // First frame entering tracking: if camera is far, snap near the body
       if (!wasTracking.current) {
         const dist = camera.position.distanceTo(tracked);
-        if (dist > 80) {
-          camera.position.copy(tracked).add(DEFAULT_TRACK_OFFSET);
+        if (dist > trackingDistance * 3) {
+          const d = trackingDistance;
+          camera.position.set(tracked.x + d * 0.7, tracked.y + d * 0.5, tracked.z + d * 0.7);
         }
         wasTracking.current = true;
       }

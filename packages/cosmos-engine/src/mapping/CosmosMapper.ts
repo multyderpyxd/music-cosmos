@@ -1,6 +1,19 @@
 import type { MusicDataset, ListeningStats } from '@music-cosmos/domain';
 import type { VisualRules, RenderBudget, ViewMode } from '@music-cosmos/config';
 import type { CosmicGraph, CosmicNode, CosmicEdge } from '../types/CosmicTypes.js';
+
+function enforceHierarchy(nodes: Map<string, CosmicNode>): void {
+  // Planets must be smaller than their parent star
+  for (const node of nodes.values()) {
+    if ((node.entityType === 'planet' || node.entityType === 'satellite') && node.parentId) {
+      const parent = nodes.get(node.parentId);
+      if (parent) {
+        const maxSize = parent.visualProps.size * 0.7;
+        if (node.visualProps.size > maxSize) node.visualProps.size = maxSize;
+      }
+    }
+  }
+}
 import { makeGalaxyProps, makeStarProps, makePlanetProps, makeSatelliteProps } from './visualPropsFactory.js';
 import type { StatRange } from './visualPropsFactory.js';
 
@@ -215,6 +228,8 @@ export function mapDatasetToCosmicGraph(
       }
     }
   }
+
+  enforceHierarchy(nodes);
 
   return { nodes, edges, rootIds };
 }

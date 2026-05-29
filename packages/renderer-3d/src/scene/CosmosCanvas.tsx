@@ -12,6 +12,8 @@ interface CosmosCanvasProps {
   cameraTarget?: readonly [number, number, number];
   cameraLookAt?: readonly [number, number, number];
   isTrackingEntity?: boolean;
+  trackingDistance?: number;
+  isPaused?: boolean;
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
   onBackground?: () => void;
@@ -25,12 +27,13 @@ export function CosmosCanvas({
   cameraTarget,
   cameraLookAt,
   isTrackingEntity,
+  trackingDistance,
+  isPaused = false,
   onSelect,
   onHover,
   onBackground,
   onCameraFree,
 }: CosmosCanvasProps) {
-  // Animated objects write their live position here each frame; camera reads it
   const trackedPositionRef = useRef<THREE.Vector3 | null>(null);
 
   return (
@@ -53,6 +56,7 @@ export function CosmosCanvas({
         targetPosition={cameraTarget}
         lookAtPosition={cameraLookAt}
         isTrackingEntity={isTrackingEntity}
+        trackingDistance={trackingDistance}
         trackedPositionRef={trackedPositionRef}
         onCameraFree={onCameraFree}
       />
@@ -64,6 +68,7 @@ export function CosmosCanvas({
         onSelect={onSelect}
         onHover={onHover}
         trackedPositionRef={trackedPositionRef}
+        isPaused={isPaused}
       />
     </Canvas>
   );

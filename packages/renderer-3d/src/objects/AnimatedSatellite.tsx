@@ -6,14 +6,13 @@ import type { VisualNode } from '@music-cosmos/layout-engine';
 
 interface AnimatedSatelliteProps {
   node: VisualNode;
-  // Parent planet orbital params (needed to track the planet's live position)
   planetOrbitRadius: number;
   planetOrbitPhase: number;
   planetOrbitSpeed: number;
-  // Grandparent star position (static)
   starPosition: readonly [number, number, number];
   isSelected: boolean;
   isHovered: boolean;
+  isPaused: boolean;
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
   onLivePosition?: (pos: THREE.Vector3) => void;
@@ -29,18 +28,16 @@ export function AnimatedSatellite({
   starPosition,
   isSelected,
   isHovered,
+  isPaused,
   onSelect,
   onHover,
   onLivePosition,
 }: AnimatedSatelliteProps) {
   const meshRef = useRef<THREE.Mesh>(null!);
+  const frozenT = useRef<number | null>(null);
 
   const color = useMemo(
-    () => new THREE.Color(
-      node.visualProps.color[0],
-      node.visualProps.color[1],
-      node.visualProps.color[2],
-    ),
+    () => new THREE.Color(node.visualProps.color[0], node.visualProps.color[1], node.visualProps.color[2]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [node.visualProps.color[0], node.visualProps.color[1], node.visualProps.color[2]],
   );
@@ -49,25 +46,25 @@ export function AnimatedSatellite({
   const phase = node.visualProps.orbitPhase  ?? 0;
   const speed = node.visualProps.orbitSpeed  ?? 1;
   const size  = node.visualProps.size * ((isSelected || isHovered) ? 2.5 : 1);
+  const brightness = Math.max(0.6, node.visualProps.brightness);
 
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
-    const t = clock.elapsedTime;
-
-    // Recompute parent planet's live position every frame
+    if (isPaused) {
+      if (frozenT.current === null) frozenT.current = clock.elapsedTime;
+    } else {
+      frozenT.current = null;
+    }
+    const t = frozenT.current ?? clock.elapsedTime;
     const px = starPosition[0] + planetOrbitRadius * Math.cos(planetOrbitPhase + t * planetOrbitSpeed);
     const py = starPosition[1];
     const pz = starPosition[2] + planetOrbitRadius * Math.sin(planetOrbitPhase + t * planetOrbitSpeed);
-
-    // Satellite orbits around the planet's live position
     const x = px + r * Math.cos(phase + t * speed);
     const y = py + r * 0.15 * Math.sin(phase * 2 + t * speed * 0.7);
     const z = pz + r * Math.sin(phase + t * speed);
     meshRef.current.position.set(x, y, z);
     if (onLivePosition) onLivePosition(_tmp.set(x, y, z));
   });
-
-  const brightness = Math.max(0.6, node.visualProps.brightness);
 
   return (
     <mesh

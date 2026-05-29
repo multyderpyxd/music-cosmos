@@ -18,6 +18,7 @@ interface UIState {
   activeFilters: FilterSet;
   isSidePanelOpen: boolean;
   isTrackingEntity: boolean;
+  isPaused: boolean;
   selectEntity: (id: string | null) => void;
   setHoveredEntity: (id: string | null) => void;
   setViewMode: (mode: ViewMode) => void;
@@ -26,6 +27,7 @@ interface UIState {
   toggleSidePanel: () => void;
   resetFilters: () => void;
   setTracking: (v: boolean) => void;
+  togglePause: () => void;
 }
 
 const defaultFilters: FilterSet = { minPlays: 0, genreIds: [] };
@@ -40,6 +42,7 @@ export const useUIStore = create<UIState>((set) => ({
   activeFilters: defaultFilters,
   isSidePanelOpen: false,
   isTrackingEntity: false,
+  isPaused: false,
 
   selectEntity: (id) =>
     set({ selectedEntityId: id, isSidePanelOpen: id !== null }),
@@ -54,4 +57,5 @@ export const useUIStore = create<UIState>((set) => ({
   toggleSidePanel: () => set((s) => ({ isSidePanelOpen: !s.isSidePanelOpen })),
   resetFilters: () => set({ activeFilters: defaultFilters }),
   setTracking: (v) => set({ isTrackingEntity: v }),
+  togglePause: () => set((s) => ({ isPaused: !s.isPaused })),
 }));

@@ -9,9 +9,10 @@ interface AsteroidBeltProps {
   orbitRadius: number;
   seed: number;
   count?: number;
+  isPaused?: boolean;
 }
 
-export function AsteroidBelt({ parentPosition, orbitRadius, seed, count = 60 }: AsteroidBeltProps) {
+export function AsteroidBelt({ parentPosition, orbitRadius, seed, count = 60, isPaused = false }: AsteroidBeltProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null!);
   const dummy = useMemo(() => new THREE.Object3D(), []);
 
@@ -26,9 +27,16 @@ export function AsteroidBelt({ parentPosition, orbitRadius, seed, count = 60 }: 
     }));
   }, [seed, count, orbitRadius]);
 
+  const frozenT = useRef<number | null>(null);
+
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
-    const t = clock.elapsedTime;
+    if (isPaused) {
+      if (frozenT.current === null) frozenT.current = clock.elapsedTime;
+    } else {
+      frozenT.current = null;
+    }
+    const t = frozenT.current ?? clock.elapsedTime;
     params.forEach((p, i) => {
       const r = orbitRadius + p.rOffset;
       dummy.position.set(

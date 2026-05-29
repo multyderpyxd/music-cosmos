@@ -14,9 +14,10 @@ interface CosmosSceneProps {
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
   trackedPositionRef?: React.MutableRefObject<THREE.Vector3 | null>;
+  isPaused: boolean;
 }
 
-export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover, trackedPositionRef }: CosmosSceneProps) {
+export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover, trackedPositionRef, isPaused }: CosmosSceneProps) {
   const { galaxies, stars, planets, satellites, asteroidBelts } = useMemo(() => {
     const galaxies: VisualNode[] = [];
     const stars: VisualNode[] = [];
@@ -81,6 +82,7 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover, t
             starPosition={sp}
             isSelected={isSelected}
             isHovered={node.id === hoveredId}
+            isPaused={isPaused}
             onSelect={onSelect}
             onHover={onHover}
             onLivePosition={isSelected ? handleLivePosition : undefined}
@@ -105,6 +107,7 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover, t
             starPosition={starPos}
             isSelected={isSelected}
             isHovered={node.id === hoveredId}
+            isPaused={isPaused}
             onSelect={onSelect}
             onHover={onHover}
             onLivePosition={isSelected ? handleLivePosition : undefined}
@@ -125,6 +128,7 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover, t
             orbitRadius={(parentPlanet?.visualProps.orbitRadius ?? 10) + (node.visualProps.orbitRadius ?? 3)}
             seed={hashStr(node.id)}
             count={Math.min(60, (node.metadata['hiddenCount'] as number | undefined) ?? 20)}
+            isPaused={isPaused}
           />
         );
       })}

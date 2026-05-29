@@ -9,6 +9,7 @@ interface AnimatedPlanetProps {
   starPosition: readonly [number, number, number];
   isSelected: boolean;
   isHovered: boolean;
+  isPaused: boolean;
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
   onLivePosition?: (pos: THREE.Vector3) => void;
@@ -21,11 +22,13 @@ export function AnimatedPlanet({
   starPosition,
   isSelected,
   isHovered,
+  isPaused,
   onSelect,
   onHover,
   onLivePosition,
 }: AnimatedPlanetProps) {
   const meshRef = useRef<THREE.Mesh>(null!);
+  const frozenT = useRef<number | null>(null);
 
   const color = useMemo(
     () => new THREE.Color(node.visualProps.color[0], node.visualProps.color[1], node.visualProps.color[2]),
@@ -40,7 +43,13 @@ export function AnimatedPlanet({
 
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
-    const t = clock.elapsedTime;
+    if (isPaused) {
+      // Freeze: record the time at which we paused and hold position
+      if (frozenT.current === null) frozenT.current = clock.elapsedTime;
+    } else {
+      frozenT.current = null;
+    }
+    const t = frozenT.current ?? clock.elapsedTime;
     const x = starPosition[0] + r * Math.cos(phase + t * speed);
     const y = starPosition[1];
     const z = starPosition[2] + r * Math.sin(phase + t * speed);

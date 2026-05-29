@@ -36,11 +36,13 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
   const viewMode         = useUIStore((s) => s.viewMode);
   const searchQuery      = useUIStore((s) => s.searchQuery);
   const isTrackingEntity = useUIStore((s) => s.isTrackingEntity);
+  const isPaused         = useUIStore((s) => s.isPaused);
   const selectEntity     = useUIStore((s) => s.selectEntity);
   const setHoveredEntity = useUIStore((s) => s.setHoveredEntity);
   const setViewMode      = useUIStore((s) => s.setViewMode);
   const setSearchQuery   = useUIStore((s) => s.setSearchQuery);
   const setTracking      = useUIStore((s) => s.setTracking);
+  const togglePause      = useUIStore((s) => s.togglePause);
   const recomputeScene   = useCosmosStore((s) => s.recomputeScene);
   const rawData          = useCosmosStore((s) => s.rawData);
 
@@ -84,6 +86,9 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
       .slice(0, 20);
   }, [searchQuery, scene]);
 
+  // Camera tracking distance: satellites need to be closer than planets
+  const trackingDistance = selectedNode?.entityType === 'satellite' ? 4 : 12;
+
   const handleViewModeChange = useCallback((mode: typeof viewMode) => {
     setViewMode(mode);
     recomputeScene(mode);
@@ -98,6 +103,8 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
         cameraTarget={cameraTarget}
         cameraLookAt={cameraLookAt}
         isTrackingEntity={isTrackingEntity}
+        trackingDistance={trackingDistance}
+        isPaused={isPaused}
         onSelect={selectEntity}
         onHover={setHoveredEntity}
         onBackground={() => selectEntity(null)}
@@ -113,6 +120,38 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
       <VisualLegend />
 
       <HoverTooltip label={hoveredNode?.label ?? null} entityType={hoveredNode?.entityType} />
+
+      {/* Pause / resume all orbital motion */}
+      <button
+        onClick={togglePause}
+        title={isPaused ? 'Resume motion' : 'Pause motion (easier to select bodies)'}
+        style={{
+          position: 'absolute',
+          bottom: 24,
+          right: 24,
+          width: 42,
+          height: 42,
+          borderRadius: '50%',
+          background: isPaused
+            ? 'rgba(52, 211, 153, 0.25)'
+            : 'rgba(5, 5, 20, 0.82)',
+          border: isPaused
+            ? '1px solid rgba(52, 211, 153, 0.7)'
+            : '1px solid #1e1e3f',
+          color: isPaused ? '#6ee7b7' : '#555',
+          fontSize: 18,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backdropFilter: 'blur(10px)',
+          zIndex: 100,
+          boxShadow: isPaused ? '0 2px 12px rgba(52,211,153,0.2)' : 'none',
+          transition: 'all 0.15s ease',
+        }}
+      >
+        {isPaused ? '▶' : '⏸'}
+      </button>
 
       {/* Unfix button — visible only when camera is locked to an orbiting body */}
       {isTrackingEntity && (
