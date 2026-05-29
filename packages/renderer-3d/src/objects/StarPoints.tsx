@@ -37,9 +37,11 @@ export function StarPoints({ nodes, selectedId, hoveredId, onSelect, onHover }: 
       const b = Math.max(0.6, node.visualProps.brightness) *
                 (isHovered ? 1.4 : isSelected ? 1.2 : 1) *
                 (dimmed ? 0.15 : 1);
-      colors[i * 3]     = Math.min(1, node.visualProps.color[0] * b);
-      colors[i * 3 + 1] = Math.min(1, node.visualProps.color[1] * b);
-      colors[i * 3 + 2] = Math.min(1, node.visualProps.color[2] * b);
+      // HDR values (>1) so bloom effect actually triggers on bright stars
+      const hdr = dimmed ? 1.0 : 3.5;
+      colors[i * 3]     = node.visualProps.color[0] * b * hdr;
+      colors[i * 3 + 1] = node.visualProps.color[1] * b * hdr;
+      colors[i * 3 + 2] = node.visualProps.color[2] * b * hdr;
     });
 
     const geo = new THREE.BufferGeometry();

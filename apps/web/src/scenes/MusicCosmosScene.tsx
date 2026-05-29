@@ -1,37 +1,18 @@
 import { useMemo, useEffect } from 'react';
 import { CosmosCanvas } from '@music-cosmos/renderer-3d';
-import { EntityPanel, SearchBar, VisualLegend, HoverTooltip } from '@music-cosmos/ui';
-import type { EntityDisplay } from '@music-cosmos/ui';
+import { SearchBar, VisualLegend, HoverTooltip } from '@music-cosmos/ui';
 import { useUIStore } from '../stores/ui-store.js';
 import { useCosmosStore } from '../stores/cosmos-store.js';
 import type { VisualScene, VisualNode } from '@music-cosmos/layout-engine';
 import { EntityTypeToggles } from '../components/EntityTypeToggles.js';
-import { EntityChildList } from '../components/EntityChildList.js';
 import { ImportPanel } from '../components/ImportPanel.js';
+import { CosmosPanel } from '../components/CosmosPanel.js';
 
 interface MusicCosmosSceneProps {
   scene: VisualScene;
 }
 
 const TRACKING_TYPES = new Set(['planet', 'satellite']);
-const CHILD_LIST_TYPES = new Set(['galaxy', 'star', 'planet']);
-
-function toEntityDisplay(node: VisualNode): EntityDisplay {
-  return {
-    id: node.id,
-    label: node.label,
-    entityType: node.entityType,
-    visualProps: {
-      size: node.visualProps.size,
-      brightness: node.visualProps.brightness,
-      color: node.visualProps.color,
-      mass: node.visualProps.mass,
-      orbitRadius: node.visualProps.orbitRadius,
-      orbitSpeed: node.visualProps.orbitSpeed,
-    },
-    metadata: node.metadata,
-  };
-}
 
 export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
   const selectedEntityId      = useUIStore((s) => s.selectedEntityId);
@@ -69,10 +50,6 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
     setTracking(TRACKING_TYPES.has(selectedNode.entityType));
   }, [selectedNode, setTracking]);
 
-  const selectedDisplay = selectedNode ? toEntityDisplay(selectedNode) : null;
-  // domainId links VisualNode back to the MusicDataset entity (e.g. 'a:burial')
-  const selectedStats = selectedNode ? statsMap.get(selectedNode.domainId) : undefined;
-
   const cameraTarget = useMemo<readonly [number, number, number] | undefined>(() => {
     if (!selectedNode || TRACKING_TYPES.has(selectedNode.entityType)) return undefined;
     const ct = scene.cameraTargets.get(selectedNode.id);
@@ -83,12 +60,6 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
     if (!selectedNode || TRACKING_TYPES.has(selectedNode.entityType)) return undefined;
     const ct = scene.cameraTargets.get(selectedNode.id);
     return ct ? [ct.lookAt.x, ct.lookAt.y, ct.lookAt.z] as const : undefined;
-  }, [selectedNode, scene]);
-
-  // Child nodes for entity child list (albums for artist, tracks for album)
-  const childNodes = useMemo(() => {
-    if (!selectedNode || !CHILD_LIST_TYPES.has(selectedNode.entityType)) return [];
-    return scene.nodes.filter((n) => n.parentId === selectedNode.id);
   }, [selectedNode, scene]);
 
   const searchResults = useMemo(() => {
@@ -124,14 +95,15 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
 
       <SearchBar results={searchResults} onSearch={setSearchQuery} onSelect={selectEntity} />
 
-      <EntityPanel entity={selectedDisplay} stats={selectedStats} onClose={() => selectEntity(null)} />
-
-      {selectedNode && childNodes.length > 0 && (
-        <EntityChildList
-          parentNode={selectedNode}
-          childNodes={childNodes}
+      {/* Unified navigation panel — replaces EntityPanel + EntityChildList */}
+      {selectedNode && (
+        <CosmosPanel
+          selectedNode={selectedNode}
+          nodeById={nodeById}
+          scene={scene}
           stats={statsMap}
           onSelect={selectEntity}
+          onClose={() => selectEntity(null)}
         />
       )}
 

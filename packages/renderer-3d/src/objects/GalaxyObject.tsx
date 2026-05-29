@@ -77,9 +77,14 @@ export function GalaxyObject({ node, onClick, isSelected, particleOpacity = 0.55
       >
         <sphereGeometry args={[radius * 0.12, 10, 10]} />
         <meshBasicMaterial
-          color={new THREE.Color(visualProps.color[0], visualProps.color[1], visualProps.color[2])}
+          color={new THREE.Color(
+            visualProps.color[0] * 3,
+            visualProps.color[1] * 3,
+            visualProps.color[2] * 3,
+          )}
           transparent
           opacity={coreOpacity}
+          toneMapped={false}
         />
       </mesh>
     </group>

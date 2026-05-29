@@ -86,12 +86,12 @@ export function CosmosCanvas({
         galaxyParticleOpacity={galaxyParticleOpacity}
       />
 
-      {/* Bloom post-processing — makes stars and galaxy cores glow */}
+      {/* Bloom — stars/galaxy cores output HDR values (>1) so this triggers */}
       <EffectComposer>
         <Bloom
-          luminanceThreshold={0.35}
-          luminanceSmoothing={0.6}
-          intensity={1.2}
+          luminanceThreshold={0.8}
+          luminanceSmoothing={0.4}
+          intensity={1.8}
           mipmapBlur
         />
       </EffectComposer>
