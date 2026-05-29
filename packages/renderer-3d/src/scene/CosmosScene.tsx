@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
+import * as THREE from 'three';
 import type { VisualScene, VisualNode } from '@music-cosmos/layout-engine';
 import { GalaxyObject } from '../objects/GalaxyObject.js';
-import { InstancedStars } from '../instancing/InstancedStars.js';
-import { InstancedPlanets } from '../instancing/InstancedPlanets.js';
-import { InstancedSatellites } from '../instancing/InstancedSatellites.js';
+import { StarPoints } from '../objects/StarPoints.js';
+import { AnimatedPlanet } from '../objects/AnimatedPlanet.js';
+import { AnimatedSatellite } from '../objects/AnimatedSatellite.js';
 import { AsteroidBelt } from '../objects/AsteroidBelt.js';
 
 interface CosmosSceneProps {
@@ -21,20 +22,19 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover }:
     const planets: VisualNode[] = [];
     const satellites: VisualNode[] = [];
     const asteroidBelts: VisualNode[] = [];
-
     for (const node of scene.nodes) {
       switch (node.entityType) {
-        case 'galaxy':       galaxies.push(node); break;
-        case 'star':         stars.push(node);    break;
-        case 'planet':       planets.push(node);  break;
-        case 'satellite':    satellites.push(node); break;
+        case 'galaxy':        galaxies.push(node); break;
+        case 'star':          stars.push(node);    break;
+        case 'planet':        planets.push(node);  break;
+        case 'satellite':     satellites.push(node); break;
         case 'asteroid-belt': asteroidBelts.push(node); break;
       }
     }
     return { galaxies, stars, planets, satellites, asteroidBelts };
   }, [scene]);
 
-  // Position lookup map for orbital animation: nodeId → [x,y,z]
+  // Static position map (layout-engine initial positions)
   const positionMap = useMemo(() => {
     const m = new Map<string, readonly [number, number, number]>();
     for (const node of scene.nodes) {
@@ -43,12 +43,13 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover }:
     return m;
   }, [scene]);
 
+  // Node lookup for resolving parent chains
+  const nodeById = useMemo(() => new Map(scene.nodes.map((n) => [n.id, n])), [scene]);
+
   return (
     <>
-      {/* Ambient star field background */}
       <StarField count={2000} radius={1500} />
 
-      {/* Galaxies */}
       {galaxies.map((node) => (
         <GalaxyObject
           key={node.id}
@@ -58,8 +59,8 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover }:
         />
       ))}
 
-      {/* Stars (artists) — InstancedMesh */}
-      <InstancedStars
+      {/* Stars as Points — vertex colors work reliably here */}
+      <StarPoints
         nodes={stars}
         selectedId={selectedId}
         hoveredId={hoveredId}
@@ -67,37 +68,65 @@ export function CosmosScene({ scene, selectedId, hoveredId, onSelect, onHover }:
         onHover={onHover}
       />
 
-      {/* Planets (albums) — InstancedMesh with orbital animation */}
-      <InstancedPlanets
-        nodes={planets}
-        parentPositions={positionMap}
-        selectedId={selectedId}
-        hoveredId={hoveredId}
-        onSelect={onSelect}
-        onHover={onHover}
-      />
+      {/* Planets — individual meshes with direct color + orbital animation */}
+      {planets.map((node) => {
+        const starPos = node.parentId ? positionMap.get(node.parentId) : undefined;
+        const sp: readonly [number, number, number] = starPos ?? [node.position.x, node.position.y, node.position.z];
+        return (
+          <AnimatedPlanet
+            key={node.id}
+            node={node}
+            starPosition={sp}
+            isSelected={node.id === selectedId}
+            isHovered={node.id === hoveredId}
+            onSelect={onSelect}
+            onHover={onHover}
+          />
+        );
+      })}
 
-      {/* Satellites (tracks) — InstancedMesh with orbital animation */}
-      <InstancedSatellites
-        nodes={satellites}
-        parentPositions={positionMap}
-        selectedId={selectedId}
-        hoveredId={hoveredId}
-        onSelect={onSelect}
-        onHover={onHover}
-      />
+      {/* Satellites — individual meshes, track parent planet live position */}
+      {satellites.map((node) => {
+        const parentPlanet = node.parentId ? nodeById.get(node.parentId) : undefined;
+        const grandparentStar = parentPlanet?.parentId ? nodeById.get(parentPlanet.parentId) : undefined;
+        const starPos = grandparentStar
+          ? [grandparentStar.position.x, grandparentStar.position.y, grandparentStar.position.z] as const
+          : (node.position ? [node.position.x, node.position.y, node.position.z] as const : [0, 0, 0] as const);
 
-      {/* Asteroid belts for hidden tracks */}
+        return (
+          <AnimatedSatellite
+            key={node.id}
+            node={node}
+            planetOrbitRadius={parentPlanet?.visualProps.orbitRadius ?? 10}
+            planetOrbitPhase={parentPlanet?.visualProps.orbitPhase ?? 0}
+            planetOrbitSpeed={parentPlanet?.visualProps.orbitSpeed ?? 0.1}
+            starPosition={starPos}
+            isSelected={node.id === selectedId}
+            isHovered={node.id === hoveredId}
+            onSelect={onSelect}
+            onHover={onHover}
+          />
+        );
+      })}
+
+      {/* Asteroid belts */}
       {asteroidBelts.map((node) => {
         const parentPos = node.parentId ? positionMap.get(node.parentId) : undefined;
         const pos: readonly [number, number, number] = parentPos ?? [node.position.x, node.position.y, node.position.z];
+        // The asteroid belt should also follow the animated planet position.
+        // For now it uses the initial planet position — Phase 3 improvement.
+        const parentPlanet = node.parentId ? nodeById.get(node.parentId) : undefined;
+        const grandparentStar = parentPlanet?.parentId ? nodeById.get(parentPlanet.parentId) : undefined;
+        const starPos = grandparentStar
+          ? [grandparentStar.position.x, grandparentStar.position.y, grandparentStar.position.z] as const
+          : pos;
         return (
           <AsteroidBelt
             key={node.id}
-            parentPosition={pos}
-            orbitRadius={(node.visualProps.orbitRadius ?? 4) + 2}
+            parentPosition={starPos}
+            orbitRadius={(parentPlanet?.visualProps.orbitRadius ?? 10) + (node.visualProps.orbitRadius ?? 3)}
             seed={hashStr(node.id)}
-            count={Math.min(80, (node.metadata['hiddenCount'] as number | undefined ?? 20))}
+            count={Math.min(60, (node.metadata['hiddenCount'] as number | undefined) ?? 20)}
           />
         );
       })}
@@ -110,10 +139,6 @@ function hashStr(s: string): number {
   for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
   return h >>> 0;
 }
-
-// Simple background star field — static points
-import { useRef } from 'react';
-import * as THREE from 'three';
 
 function StarField({ count, radius }: { count: number; radius: number }) {
   const geo = useMemo(() => {
@@ -131,9 +156,11 @@ function StarField({ count, radius }: { count: number; radius: number }) {
     return g;
   }, [count, radius]);
 
+  const matRef = useRef<THREE.PointsMaterial>(null!);
+
   return (
     <points geometry={geo}>
-      <pointsMaterial color="#ffffff" size={0.8} sizeAttenuation transparent opacity={0.6} depthWrite={false} />
+      <pointsMaterial ref={matRef} color="#ffffff" size={0.8} sizeAttenuation transparent opacity={0.55} depthWrite={false} />
     </points>
   );
 }
