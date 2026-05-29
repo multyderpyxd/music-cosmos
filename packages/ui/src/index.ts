@@ -1,5 +1,6 @@
-// ui — Phase 2 components
-// EntityPanel, SearchBar, FilterControls, VisualLegend, ViewModeSelector
-// will be added in Phase 2.
-
-export {};
+export { EntityPanel } from './EntityPanel/EntityPanel.js';
+export type { EntityDisplay } from './EntityPanel/EntityPanel.js';
+export { ViewModeSelector } from './ViewModeSelector/ViewModeSelector.js';
+export { SearchBar } from './SearchBar/SearchBar.js';
+export { VisualLegend } from './Legend/VisualLegend.js';
+export { HoverTooltip } from './HoverTooltip/HoverTooltip.js';
