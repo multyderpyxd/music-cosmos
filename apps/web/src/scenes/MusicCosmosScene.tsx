@@ -7,6 +7,7 @@ import { useCosmosStore } from '../stores/cosmos-store.js';
 import type { VisualScene, VisualNode } from '@music-cosmos/layout-engine';
 import type { ListeningStats } from '@music-cosmos/domain';
 import { EntityTypeToggles } from '../components/EntityTypeToggles.js';
+import { ImportPanel } from '../components/ImportPanel.js';
 
 interface MusicCosmosSceneProps {
   scene: VisualScene;
@@ -46,6 +47,8 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
   const togglePause            = useUIStore((s) => s.togglePause);
   const toggleEntityType       = useUIStore((s) => s.toggleEntityType);
   const setGalaxyParticleOpacity = useUIStore((s) => s.setGalaxyParticleOpacity);
+  const isImportPanelOpen      = useUIStore((s) => s.isImportPanelOpen);
+  const toggleImportPanel      = useUIStore((s) => s.toggleImportPanel);
   const rawData                = useCosmosStore((s) => s.rawData);
 
   const statsMap = useMemo<Map<string, ListeningStats>>(() => new Map(), [rawData]);
@@ -164,15 +167,48 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
         </button>
       )}
 
+      {/* Top-left: node count + import button */}
       <div style={{
         position: 'absolute', top: 16, left: 16,
-        background: 'rgba(5,5,20,0.7)', border: '1px solid #1e1e3f',
-        borderRadius: 8, padding: '5px 10px',
-        fontSize: 11, color: '#555', fontFamily: 'monospace',
-        backdropFilter: 'blur(8px)',
+        display: 'flex', alignItems: 'center', gap: 8,
       }}>
-        {scene.metadata.renderedNodes} / {scene.metadata.totalNodes} nodes · seed {scene.metadata.seed}
+        <div style={{
+          background: 'rgba(5,5,20,0.7)', border: '1px solid #1e1e3f',
+          borderRadius: 8, padding: '5px 10px',
+          fontSize: 11, color: '#555', fontFamily: 'monospace',
+          backdropFilter: 'blur(8px)',
+        }}>
+          {scene.metadata.renderedNodes}/{scene.metadata.totalNodes} · seed {scene.metadata.seed}
+        </div>
+
+        {/* Import your data button */}
+        <button
+          onClick={toggleImportPanel}
+          title="Import your music data (stats.fm or Spotify)"
+          style={{
+            background: 'rgba(107,72,255,0.18)',
+            border: '1px solid rgba(107,72,255,0.5)',
+            borderRadius: 8,
+            padding: '5px 12px',
+            color: '#a78bfa',
+            fontSize: 11,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            backdropFilter: 'blur(8px)',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            letterSpacing: 0.3,
+            zIndex: 100,
+            transition: 'all 0.15s ease',
+          }}
+        >
+          📂 {rawData ? 'Change data' : 'Load your music'}
+        </button>
       </div>
+
+      {/* Import panel modal */}
+      {isImportPanelOpen && <ImportPanel onClose={toggleImportPanel} />}
     </>
   );
 }

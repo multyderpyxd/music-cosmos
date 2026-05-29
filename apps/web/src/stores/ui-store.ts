@@ -21,6 +21,7 @@ interface UIState {
   isPaused: boolean;
   activeEntityTypes: CosmicEntityTypeFilter;
   galaxyParticleOpacity: number;
+  isImportPanelOpen: boolean;
   selectEntity: (id: string | null) => void;
   setHoveredEntity: (id: string | null) => void;
   setSearchQuery: (q: string) => void;
@@ -30,6 +31,7 @@ interface UIState {
   togglePause: () => void;
   toggleEntityType: (type: string) => void;
   setGalaxyParticleOpacity: (v: number) => void;
+  toggleImportPanel: () => void;
 }
 
 const defaultFilters: FilterSet = { minPlays: 0, genreIds: [] };
@@ -44,6 +46,7 @@ export const useUIStore = create<UIState>((set) => ({
   isPaused: false,
   activeEntityTypes: new Set(),
   galaxyParticleOpacity: 0.55,
+  isImportPanelOpen: false,
 
   selectEntity: (id) =>
     set({ selectedEntityId: id, isSidePanelOpen: id !== null }),
@@ -61,4 +64,5 @@ export const useUIStore = create<UIState>((set) => ({
       return { activeEntityTypes: next };
     }),
   setGalaxyParticleOpacity: (v) => set({ galaxyParticleOpacity: v }),
+  toggleImportPanel: () => set((s) => ({ isImportPanelOpen: !s.isImportPanelOpen })),
 }));
