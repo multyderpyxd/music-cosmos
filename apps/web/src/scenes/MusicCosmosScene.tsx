@@ -5,8 +5,8 @@ import type { EntityDisplay } from '@music-cosmos/ui';
 import { useUIStore } from '../stores/ui-store.js';
 import { useCosmosStore } from '../stores/cosmos-store.js';
 import type { VisualScene, VisualNode } from '@music-cosmos/layout-engine';
-import type { ListeningStats } from '@music-cosmos/domain';
 import { EntityTypeToggles } from '../components/EntityTypeToggles.js';
+import { EntityChildList } from '../components/EntityChildList.js';
 import { ImportPanel } from '../components/ImportPanel.js';
 
 interface MusicCosmosSceneProps {
@@ -14,6 +14,7 @@ interface MusicCosmosSceneProps {
 }
 
 const TRACKING_TYPES = new Set(['planet', 'satellite']);
+const CHILD_LIST_TYPES = new Set(['galaxy', 'star', 'planet']);
 
 function toEntityDisplay(node: VisualNode): EntityDisplay {
   return {
@@ -33,25 +34,31 @@ function toEntityDisplay(node: VisualNode): EntityDisplay {
 }
 
 export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
-  const selectedEntityId       = useUIStore((s) => s.selectedEntityId);
-  const hoveredEntityId        = useUIStore((s) => s.hoveredEntityId);
-  const searchQuery            = useUIStore((s) => s.searchQuery);
-  const isTrackingEntity       = useUIStore((s) => s.isTrackingEntity);
-  const isPaused               = useUIStore((s) => s.isPaused);
-  const activeEntityTypes      = useUIStore((s) => s.activeEntityTypes);
-  const galaxyParticleOpacity  = useUIStore((s) => s.galaxyParticleOpacity);
-  const selectEntity           = useUIStore((s) => s.selectEntity);
-  const setHoveredEntity       = useUIStore((s) => s.setHoveredEntity);
-  const setSearchQuery         = useUIStore((s) => s.setSearchQuery);
-  const setTracking            = useUIStore((s) => s.setTracking);
-  const togglePause            = useUIStore((s) => s.togglePause);
-  const toggleEntityType       = useUIStore((s) => s.toggleEntityType);
+  const selectedEntityId      = useUIStore((s) => s.selectedEntityId);
+  const hoveredEntityId       = useUIStore((s) => s.hoveredEntityId);
+  const searchQuery           = useUIStore((s) => s.searchQuery);
+  const isTrackingEntity      = useUIStore((s) => s.isTrackingEntity);
+  const isPaused              = useUIStore((s) => s.isPaused);
+  const activeEntityTypes     = useUIStore((s) => s.activeEntityTypes);
+  const galaxyParticleOpacity = useUIStore((s) => s.galaxyParticleOpacity);
+  const isImportPanelOpen     = useUIStore((s) => s.isImportPanelOpen);
+  const resetCameraKey        = useUIStore((s) => s.resetCameraKey);
+  const selectEntity          = useUIStore((s) => s.selectEntity);
+  const setHoveredEntity      = useUIStore((s) => s.setHoveredEntity);
+  const setSearchQuery        = useUIStore((s) => s.setSearchQuery);
+  const setTracking           = useUIStore((s) => s.setTracking);
+  const togglePause           = useUIStore((s) => s.togglePause);
+  const toggleEntityType      = useUIStore((s) => s.toggleEntityType);
   const setGalaxyParticleOpacity = useUIStore((s) => s.setGalaxyParticleOpacity);
-  const isImportPanelOpen      = useUIStore((s) => s.isImportPanelOpen);
-  const toggleImportPanel      = useUIStore((s) => s.toggleImportPanel);
-  const rawData                = useCosmosStore((s) => s.rawData);
+  const toggleImportPanel     = useUIStore((s) => s.toggleImportPanel);
+  const resetCamera           = useUIStore((s) => s.resetCamera);
 
-  const statsMap = useMemo<Map<string, ListeningStats>>(() => new Map(), [rawData]);
+  const dataset = useCosmosStore((s) => s.dataset);
+  const rawData = useCosmosStore((s) => s.rawData);
+
+  // Real stats from the normalized dataset — no longer empty!
+  const statsMap = useMemo(() => dataset?.stats ?? new Map(), [dataset]);
+
   const nodeById = useMemo(() => new Map(scene.nodes.map((n) => [n.id, n])), [scene]);
 
   const selectedNode = selectedEntityId ? (nodeById.get(selectedEntityId) ?? null) : null;
@@ -63,20 +70,25 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
   }, [selectedNode, setTracking]);
 
   const selectedDisplay = selectedNode ? toEntityDisplay(selectedNode) : null;
-  const selectedStats   = selectedNode ? statsMap.get(selectedNode.domainId) : undefined;
+  // domainId links VisualNode back to the MusicDataset entity (e.g. 'a:burial')
+  const selectedStats = selectedNode ? statsMap.get(selectedNode.domainId) : undefined;
 
   const cameraTarget = useMemo<readonly [number, number, number] | undefined>(() => {
     if (!selectedNode || TRACKING_TYPES.has(selectedNode.entityType)) return undefined;
     const ct = scene.cameraTargets.get(selectedNode.id);
-    if (!ct) return undefined;
-    return [ct.position.x, ct.position.y, ct.position.z] as const;
+    return ct ? [ct.position.x, ct.position.y, ct.position.z] as const : undefined;
   }, [selectedNode, scene]);
 
   const cameraLookAt = useMemo<readonly [number, number, number] | undefined>(() => {
     if (!selectedNode || TRACKING_TYPES.has(selectedNode.entityType)) return undefined;
     const ct = scene.cameraTargets.get(selectedNode.id);
-    if (!ct) return undefined;
-    return [ct.lookAt.x, ct.lookAt.y, ct.lookAt.z] as const;
+    return ct ? [ct.lookAt.x, ct.lookAt.y, ct.lookAt.z] as const : undefined;
+  }, [selectedNode, scene]);
+
+  // Child nodes for entity child list (albums for artist, tracks for album)
+  const childNodes = useMemo(() => {
+    if (!selectedNode || !CHILD_LIST_TYPES.has(selectedNode.entityType)) return [];
+    return scene.nodes.filter((n) => n.parentId === selectedNode.id);
   }, [selectedNode, scene]);
 
   const searchResults = useMemo(() => {
@@ -103,6 +115,7 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
         isPaused={isPaused}
         activeEntityTypes={activeEntityTypes}
         galaxyParticleOpacity={galaxyParticleOpacity}
+        resetCameraKey={resetCameraKey}
         onSelect={selectEntity}
         onHover={setHoveredEntity}
         onBackground={() => selectEntity(null)}
@@ -113,7 +126,15 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
 
       <EntityPanel entity={selectedDisplay} stats={selectedStats} onClose={() => selectEntity(null)} />
 
-      {/* Entity type visibility toggles + galaxy particle opacity */}
+      {selectedNode && childNodes.length > 0 && (
+        <EntityChildList
+          parentNode={selectedNode}
+          childNodes={childNodes}
+          stats={statsMap}
+          onSelect={selectEntity}
+        />
+      )}
+
       <EntityTypeToggles
         activeTypes={activeEntityTypes}
         onToggle={toggleEntityType}
@@ -125,35 +146,41 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
 
       <HoverTooltip label={hoveredNode?.label ?? null} entityType={hoveredNode?.entityType} />
 
-      {/* Pause / resume orbital motion */}
-      <button
-        onClick={togglePause}
-        title={isPaused ? 'Resume motion' : 'Pause motion'}
-        style={{
-          position: 'absolute', bottom: 24, right: 24,
-          width: 42, height: 42, borderRadius: '50%',
-          background: isPaused ? 'rgba(52,211,153,0.25)' : 'rgba(5,5,20,0.82)',
-          border: isPaused ? '1px solid rgba(52,211,153,0.7)' : '1px solid #1e1e3f',
-          color: isPaused ? '#6ee7b7' : '#555',
-          fontSize: 18, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          backdropFilter: 'blur(10px)', zIndex: 100,
-          boxShadow: isPaused ? '0 2px 12px rgba(52,211,153,0.2)' : 'none',
-          transition: 'all 0.2s ease',
-        }}
-      >
-        {isPaused ? '▶' : '⏸'}
-      </button>
+      {/* Bottom-right: reset + pause */}
+      <div style={{
+        position: 'absolute', bottom: 24, right: 24,
+        display: 'flex', flexDirection: 'column', gap: 8, zIndex: 100,
+      }}>
+        <button
+          onClick={resetCamera}
+          title="Reset to universe view"
+          style={{ ...circleBtn, background: 'rgba(5,5,20,0.82)', border: '1px solid #1e1e3f', color: '#555', fontSize: 16 }}
+        >
+          🏠
+        </button>
+        <button
+          onClick={togglePause}
+          title={isPaused ? 'Resume motion' : 'Pause motion'}
+          style={{
+            ...circleBtn,
+            background: isPaused ? 'rgba(52,211,153,0.25)' : 'rgba(5,5,20,0.82)',
+            border: isPaused ? '1px solid rgba(52,211,153,0.7)' : '1px solid #1e1e3f',
+            color: isPaused ? '#6ee7b7' : '#555',
+            fontSize: 18,
+            boxShadow: isPaused ? '0 2px 12px rgba(52,211,153,0.2)' : 'none',
+          }}
+        >
+          {isPaused ? '▶' : '⏸'}
+        </button>
+      </div>
 
-      {/* Unfix camera — only shown when tracking an orbiting body */}
       {isTrackingEntity && (
         <button
           onClick={() => setTracking(false)}
           style={{
             position: 'absolute', bottom: 90, left: '50%',
             transform: 'translateX(-50%)',
-            background: 'rgba(107,72,255,0.25)',
-            border: '1px solid rgba(107,72,255,0.7)',
+            background: 'rgba(107,72,255,0.25)', border: '1px solid rgba(107,72,255,0.7)',
             borderRadius: 20, padding: '7px 18px',
             color: '#c4b5fd', fontSize: 12, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 7,
@@ -167,48 +194,37 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
         </button>
       )}
 
-      {/* Top-left: node count + import button */}
-      <div style={{
-        position: 'absolute', top: 16, left: 16,
-        display: 'flex', alignItems: 'center', gap: 8,
-      }}>
+      {/* Top-left: stats + import */}
+      <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{
           background: 'rgba(5,5,20,0.7)', border: '1px solid #1e1e3f',
           borderRadius: 8, padding: '5px 10px',
-          fontSize: 11, color: '#555', fontFamily: 'monospace',
-          backdropFilter: 'blur(8px)',
+          fontSize: 11, color: '#555', fontFamily: 'monospace', backdropFilter: 'blur(8px)',
         }}>
           {scene.metadata.renderedNodes}/{scene.metadata.totalNodes} · seed {scene.metadata.seed}
         </div>
-
-        {/* Import your data button */}
         <button
           onClick={toggleImportPanel}
-          title="Import your music data (stats.fm or Spotify)"
+          title="Import your music data"
           style={{
-            background: 'rgba(107,72,255,0.18)',
-            border: '1px solid rgba(107,72,255,0.5)',
-            borderRadius: 8,
-            padding: '5px 12px',
-            color: '#a78bfa',
-            fontSize: 11,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
+            background: 'rgba(107,72,255,0.18)', border: '1px solid rgba(107,72,255,0.5)',
+            borderRadius: 8, padding: '5px 12px', color: '#a78bfa', fontSize: 11, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 5,
             backdropFilter: 'blur(8px)',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            letterSpacing: 0.3,
-            zIndex: 100,
-            transition: 'all 0.15s ease',
+            fontFamily: 'system-ui, -apple-system, sans-serif', letterSpacing: 0.3, zIndex: 100,
           }}
         >
-          📂 {rawData ? 'Change data' : 'Load your music'}
+          📂 {rawData?.source === 'mock' || !rawData ? 'Load your music' : 'Change data'}
         </button>
       </div>
 
-      {/* Import panel modal */}
       {isImportPanelOpen && <ImportPanel onClose={toggleImportPanel} />}
     </>
   );
 }
+
+const circleBtn: React.CSSProperties = {
+  width: 42, height: 42, borderRadius: '50%', cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  backdropFilter: 'blur(10px)', transition: 'all 0.2s ease',
+};

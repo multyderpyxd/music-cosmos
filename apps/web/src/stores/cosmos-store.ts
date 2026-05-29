@@ -19,10 +19,13 @@ interface CosmosState {
   recomputeScene: (viewMode: ViewMode) => void;
 }
 
-async function buildScene(raw: RawMusicData, viewMode: ViewMode): Promise<VisualScene> {
+interface BuildResult { scene: VisualScene; dataset: MusicDataset }
+
+async function buildScene(raw: RawMusicData, viewMode: ViewMode): Promise<BuildResult> {
   const dataset = normalize(raw);
   const graph = mapDatasetToCosmicGraph(dataset, dataset.stats, defaultVisualRules, defaultRenderBudget, viewMode);
-  return computeLayout(graph, defaultLayoutConfig, defaultRenderBudget, viewMode);
+  const scene = computeLayout(graph, defaultLayoutConfig, defaultRenderBudget, viewMode);
+  return { scene, dataset };
 }
 
 export const useCosmosStore = create<CosmosState>((set, get) => ({
@@ -36,8 +39,8 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const raw = await new MockDataAdapter().load();
-      const scene = await buildScene(raw, 'album');
-      set({ rawData: raw, scene, isLoading: false });
+      const { scene, dataset } = await buildScene(raw, 'album');
+      set({ rawData: raw, dataset, scene, isLoading: false });
     } catch (e) {
       set({ error: String(e), isLoading: false });
     }
@@ -56,11 +59,11 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
           adapter = new StatsFmImportAdapter();
         }
       } else {
-        throw new Error('Unsupported file type. Please use a JSON export from stats.fm or Spotify.');
+        throw new Error('Unsupported file type. Use a JSON export from stats.fm or Spotify.');
       }
       const raw = await adapter.load(content);
-      const scene = await buildScene(raw, 'album');
-      set({ rawData: raw, scene, isLoading: false });
+      const { scene, dataset } = await buildScene(raw, 'album');
+      set({ rawData: raw, dataset, scene, isLoading: false });
     } catch (e) {
       set({ error: String(e), isLoading: false });
     }
@@ -69,6 +72,6 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
   recomputeScene: (viewMode: ViewMode) => {
     const { rawData } = get();
     if (!rawData) return;
-    void buildScene(rawData, viewMode).then((scene) => set({ scene }));
+    void buildScene(rawData, viewMode).then(({ scene, dataset }) => set({ scene, dataset }));
   },
 }));

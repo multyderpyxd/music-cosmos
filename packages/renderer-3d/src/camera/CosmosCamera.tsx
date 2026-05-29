@@ -10,12 +10,11 @@ interface CosmosCameraProps {
   isTrackingEntity?: boolean;
   trackingDistance?: number;
   trackedPositionRef?: React.MutableRefObject<THREE.Vector3 | null>;
+  resetKey?: number;
   onCameraFree?: () => void;
 }
 
-// Reusable vectors — allocated once, never recreated per frame
 const _delta = new THREE.Vector3();
-const _prevTracked = new THREE.Vector3();
 
 export function CosmosCamera({
   targetPosition,
@@ -23,6 +22,7 @@ export function CosmosCamera({
   isTrackingEntity,
   trackingDistance = 12,
   trackedPositionRef,
+  resetKey,
   onCameraFree,
 }: CosmosCameraProps) {
   const { camera } = useThree();
@@ -33,7 +33,6 @@ export function CosmosCamera({
   const targetLook = useRef(new THREE.Vector3());
   const prevKey = useRef('');
   const wasTracking = useRef(false);
-  // Stores the tracked position from the PREVIOUS frame for delta computation
   const prevTrackedPos = useRef(new THREE.Vector3());
 
   useEffect(() => {
@@ -42,7 +41,18 @@ export function CosmosCamera({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Animate to fixed target for non-moving entities (stars, galaxies)
+  // Reset to universe view when resetKey increments
+  useEffect(() => {
+    if (resetKey === undefined) return;
+    userInteracted.current = false;
+    animating.current = true;
+    wasTracking.current = false;
+    targetCam.current.set(0, 200, 800);
+    targetLook.current.set(0, 0, 0);
+    prevKey.current = '';
+  }, [resetKey]);
+
+  // Animate to fixed target (stars, galaxies)
   useEffect(() => {
     if (!targetPosition) return;
     const key = targetPosition.join(',');
@@ -58,52 +68,32 @@ export function CosmosCamera({
     const controls = controlsRef.current;
 
     // === TRACKING MODE ===
-    // The orbiting body is the pivot. User can orbit/zoom freely around it.
-    // Camera distance is fully controlled by the user (scroll wheel).
-    // ONLY the Unfix button exits tracking — dragging does NOT release it.
     if (isTrackingEntity && trackedPositionRef?.current) {
       const tracked = trackedPositionRef.current;
-
       if (!wasTracking.current) {
-        // First frame entering tracking mode:
-        // If camera is far, snap it to a reasonable starting distance.
         const dist = camera.position.distanceTo(tracked);
         if (dist > trackingDistance * 3) {
           const d = trackingDistance;
-          camera.position.set(
-            tracked.x + d * 0.7,
-            tracked.y + d * 0.5,
-            tracked.z + d * 0.7,
-          );
+          camera.position.set(tracked.x + d * 0.7, tracked.y + d * 0.5, tracked.z + d * 0.7);
         }
-        // Record the body's initial position for delta tracking
         prevTrackedPos.current.copy(tracked);
         wasTracking.current = true;
-        // Sync controls target on first frame
         controls?.target.copy(tracked);
         return;
       }
-
-      // Every subsequent frame: compute how much the body moved
       _delta.subVectors(tracked, prevTrackedPos.current);
       prevTrackedPos.current.copy(tracked);
-
-      // Apply the SAME displacement to both the camera AND the orbit pivot.
-      // This keeps the camera's relative position to the body EXACTLY constant
-      // regardless of the body's orbital speed.
-      // The user's zoom/orbit input from OrbitControls is applied on top of this.
       camera.position.add(_delta);
       controls?.target.add(_delta);
-
       return;
     }
 
     wasTracking.current = false;
 
-    // === NORMAL ANIMATION MODE (stars, galaxies — fixed positions) ===
+    // === NORMAL ANIMATION MODE ===
     if (!animating.current || userInteracted.current) return;
     camera.position.lerp(targetCam.current, 0.04);
-    if (controls && lookAtPosition) controls.target.lerp(targetLook.current, 0.04);
+    if (controls) controls.target.lerp(targetLook.current, 0.04);
     if (camera.position.distanceTo(targetCam.current) < 0.5) animating.current = false;
   });
 
@@ -116,11 +106,7 @@ export function CosmosCamera({
       maxDistance={3000}
       makeDefault
       onStart={() => {
-        if (isTrackingEntity) {
-          // Tracking: user orbits around the body — do NOT release tracking
-          return;
-        }
-        // Normal mode: stop focus animation when user takes control
+        if (isTrackingEntity) return; // tracking: orbit around body, don't release
         userInteracted.current = true;
         animating.current = false;
         onCameraFree?.();

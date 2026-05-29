@@ -15,6 +15,8 @@
     "@music-cosmos/config": "workspace:*",
     "@react-three/fiber": "^8.17.0",
     "@react-three/drei": "^9.115.0",
+    "@react-three/postprocessing": "^2.16.0",
+    "postprocessing": "^6.36.0",
     "three": "^0.168.0",
     "react": "^18.3.1"
   },

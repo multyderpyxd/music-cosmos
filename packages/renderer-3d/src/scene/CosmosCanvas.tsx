@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import type { VisualScene } from '@music-cosmos/layout-engine';
 import { CosmosScene } from './CosmosScene.js';
@@ -16,6 +17,7 @@ interface CosmosCanvasProps {
   isPaused?: boolean;
   activeEntityTypes: Set<string>;
   galaxyParticleOpacity: number;
+  resetCameraKey?: number;
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
   onBackground?: () => void;
@@ -33,6 +35,7 @@ export function CosmosCanvas({
   isPaused = false,
   activeEntityTypes,
   galaxyParticleOpacity,
+  resetCameraKey,
   onSelect,
   onHover,
   onBackground,
@@ -43,7 +46,12 @@ export function CosmosCanvas({
   return (
     <Canvas
       camera={{ fov: 60, near: 0.1, far: 5000 }}
-      gl={{ antialias: true, alpha: false }}
+      gl={{
+        antialias: true,
+        alpha: false,
+        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMappingExposure: 1.0,
+      }}
       style={{ background: '#020210' }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onBackground?.();
@@ -62,6 +70,7 @@ export function CosmosCanvas({
         isTrackingEntity={isTrackingEntity}
         trackingDistance={trackingDistance}
         trackedPositionRef={trackedPositionRef}
+        resetKey={resetCameraKey}
         onCameraFree={onCameraFree}
       />
 
@@ -76,6 +85,16 @@ export function CosmosCanvas({
         activeEntityTypes={activeEntityTypes}
         galaxyParticleOpacity={galaxyParticleOpacity}
       />
+
+      {/* Bloom post-processing — makes stars and galaxy cores glow */}
+      <EffectComposer>
+        <Bloom
+          luminanceThreshold={0.35}
+          luminanceSmoothing={0.6}
+          intensity={1.2}
+          mipmapBlur
+        />
+      </EffectComposer>
     </Canvas>
   );
 }

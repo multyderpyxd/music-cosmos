@@ -22,6 +22,7 @@ interface UIState {
   activeEntityTypes: CosmicEntityTypeFilter;
   galaxyParticleOpacity: number;
   isImportPanelOpen: boolean;
+  resetCameraKey: number;
   selectEntity: (id: string | null) => void;
   setHoveredEntity: (id: string | null) => void;
   setSearchQuery: (q: string) => void;
@@ -32,6 +33,7 @@ interface UIState {
   toggleEntityType: (type: string) => void;
   setGalaxyParticleOpacity: (v: number) => void;
   toggleImportPanel: () => void;
+  resetCamera: () => void;
 }
 
 const defaultFilters: FilterSet = { minPlays: 0, genreIds: [] };
@@ -47,6 +49,7 @@ export const useUIStore = create<UIState>((set) => ({
   activeEntityTypes: new Set(),
   galaxyParticleOpacity: 0.55,
   isImportPanelOpen: false,
+  resetCameraKey: 0,
 
   selectEntity: (id) =>
     set({ selectedEntityId: id, isSidePanelOpen: id !== null }),
@@ -65,4 +68,5 @@ export const useUIStore = create<UIState>((set) => ({
     }),
   setGalaxyParticleOpacity: (v) => set({ galaxyParticleOpacity: v }),
   toggleImportPanel: () => set((s) => ({ isImportPanelOpen: !s.isImportPanelOpen })),
+  resetCamera: () => set((s) => ({ resetCameraKey: s.resetCameraKey + 1, selectedEntityId: null, isTrackingEntity: false })),
 }));
