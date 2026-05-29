@@ -12,9 +12,7 @@ interface CosmosCameraProps {
   onCameraFree?: () => void;
 }
 
-const _camTarget = new THREE.Vector3();
-const _lookTarget = new THREE.Vector3();
-const _offset = new THREE.Vector3(10, 7, 10); // orbit offset for tracking mode
+const DEFAULT_TRACK_OFFSET = new THREE.Vector3(14, 7, 14);
 
 export function CosmosCamera({
   targetPosition,
@@ -30,6 +28,8 @@ export function CosmosCamera({
   const targetCam = useRef(new THREE.Vector3());
   const targetLook = useRef(new THREE.Vector3());
   const prevKey = useRef('');
+  // Track whether we were already in tracking mode to detect first frame
+  const wasTracking = useRef(false);
 
   useEffect(() => {
     camera.position.set(0, 200, 800);
@@ -37,7 +37,7 @@ export function CosmosCamera({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Animate to fixed target when star/galaxy is selected
+  // Trigger animation toward fixed target (stars, galaxies)
   useEffect(() => {
     if (!targetPosition) return;
     const key = targetPosition.join(',');
@@ -46,36 +46,37 @@ export function CosmosCamera({
     userInteracted.current = false;
     animating.current = true;
     targetCam.current.set(targetPosition[0], targetPosition[1], targetPosition[2]);
-    if (lookAtPosition) {
-      targetLook.current.set(lookAtPosition[0], lookAtPosition[1], lookAtPosition[2]);
-    }
+    if (lookAtPosition) targetLook.current.set(lookAtPosition[0], lookAtPosition[1], lookAtPosition[2]);
   }, [targetPosition, lookAtPosition]);
-
-  // Clear tracked position when tracking mode turns off
-  useEffect(() => {
-    if (!isTrackingEntity && trackedPositionRef) {
-      trackedPositionRef.current = null;
-    }
-    if (isTrackingEntity) {
-      userInteracted.current = false;
-    }
-  }, [isTrackingEntity, trackedPositionRef]);
 
   useFrame(() => {
     const controls = controlsRef.current;
 
-    // === Tracking mode: follow the orbiting planet/satellite ===
-    if (isTrackingEntity && trackedPositionRef?.current && !userInteracted.current) {
+    // === TRACKING MODE ===
+    // Body is the pivot. User orbits/zooms freely around it.
+    // ONLY the Unfix button exits this mode — dragging does NOT release it.
+    if (isTrackingEntity && trackedPositionRef?.current) {
       const tracked = trackedPositionRef.current;
-      // Smooth-follow: lerp both the camera position and the orbit target
-      _lookTarget.copy(tracked);
-      _camTarget.copy(tracked).add(_offset);
-      camera.position.lerp(_camTarget, 0.07);
-      if (controls) controls.target.lerp(_lookTarget, 0.07);
+
+      // On the first frame entering tracking: if camera is far, snap near the body
+      if (!wasTracking.current) {
+        const dist = camera.position.distanceTo(tracked);
+        if (dist > 80) {
+          camera.position.copy(tracked).add(DEFAULT_TRACK_OFFSET);
+        }
+        wasTracking.current = true;
+      }
+
+      // Keep orbit pivot on the moving body every frame.
+      // OrbitControls applies the user's input relative to this pivot,
+      // so rotate/zoom work naturally around the orbiting body.
+      controls?.target.copy(tracked);
       return;
     }
 
-    // === Normal animation: lerp toward fixed target (star / galaxy focus) ===
+    wasTracking.current = false;
+
+    // === NORMAL ANIMATION MODE (stars, galaxies) ===
     if (!animating.current || userInteracted.current) return;
     camera.position.lerp(targetCam.current, 0.04);
     if (controls && lookAtPosition) controls.target.lerp(targetLook.current, 0.04);
@@ -87,11 +88,16 @@ export function CosmosCamera({
       ref={controlsRef}
       enableDamping
       dampingFactor={0.06}
-      minDistance={2}
+      minDistance={0.5}
       maxDistance={3000}
       makeDefault
       onStart={() => {
-        // User dragged — release lock
+        if (isTrackingEntity) {
+          // Tracking mode: allow free orbit around the body.
+          // Do NOT call onCameraFree — only the Unfix button does that.
+          return;
+        }
+        // Normal mode: stop focus animation when user takes control.
         userInteracted.current = true;
         animating.current = false;
         onCameraFree?.();
