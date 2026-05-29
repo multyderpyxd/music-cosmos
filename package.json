@@ -11,10 +11,6 @@
     "lint": "eslint . --ext .ts,.tsx --ignore-path .gitignore",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
   },
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
