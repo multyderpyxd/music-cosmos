@@ -13,5 +13,8 @@ export type { Playlist } from './entities/Playlist.js';
 export type { ListeningEvent } from './entities/ListeningEvent.js';
 export type { ListeningStats } from './entities/ListeningStats.js';
 
-export type { RawListeningEvent, RawMusicData } from './dataset/RawMusicData.js';
+export type { RawListeningEvent, RawMusicData, ResolutionStatus } from './dataset/RawMusicData.js';
 export type { MusicDataset } from './dataset/MusicDataset.js';
+export type { GenreEvidence, GenreEvidenceSource } from './dataset/GenreEvidence.js';
+export type { ProfileSignal, ProfileSignalKind, ProfileSignalRange, DataProvenance, DataSourceKind } from './dataset/ProfileSignal.js';
+export type { DataQualityReport } from './dataset/DataQualityReport.js';

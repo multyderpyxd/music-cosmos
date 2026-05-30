@@ -1,22 +1,25 @@
 /**
- * StatsFmApiAdapter — converts real stats.fm API data into RawMusicData.
+ * StatsFmApiAdapter — converts stats.fm live API data into RawMusicData.
  *
- * Real API constraints discovered from live inspection:
- *   - topArtists/topTracks: streams=null (no imported history) → use position rank
- *   - recentStreams: flat items with trackName + artistIds[] (no artist name, no genres)
- *   - track.artists[] has id/name but no genres; genres only in topArtists.artist
+ * INVARIANT: syntheticEventsCreated MUST be 0.
+ * Rankings (topArtists, topTracks) are converted to ProfileSignal[],
+ * NOT to RawListeningEvent[]. Play counts must never be invented from positions.
  *
- * Strategy:
- *   1. Build genre map: artistName → genre  (from topArtists which has genres)
- *   2. Build track lookup: trackName → topTrack item  (to resolve artist for streams)
- *   3. Real events from recentStreams (matched via trackName to get artist)
- *   4. Synthetic events from topTracks using position-based play count
- *      (position 1 ≈ 200 plays, position 100 ≈ 18 plays via 200 / pos^0.6)
+ * recentStreams are treated as real events even when artistName cannot be
+ * resolved (partial events are preserved with resolutionStatus='partial').
  */
 
-import type { RawMusicData, RawListeningEvent } from '@music-cosmos/domain';
+import type {
+  RawMusicData,
+  RawListeningEvent,
+  ResolutionStatus,
+  ProfileSignal,
+  DataProvenance,
+  GenreEvidence,
+  DataQualityReport,
+} from '@music-cosmos/domain';
 
-// Local structural type — mirrors StatsFmData from apps/web without importing it
+// Local structural type — mirrors StatsFmData from apps/web/src/lib/statsFmApi.ts
 export interface StatsFmApiData {
   user: { customId: string };
   topArtists: Array<{
@@ -26,6 +29,9 @@ export interface StatsFmApiData {
       id: number;
       name: string;
       genres: string[];
+      image?: string;
+      followers?: number;
+      spotifyPopularity?: number;
     };
   }>;
   topTracks: Array<{
@@ -35,106 +41,238 @@ export interface StatsFmApiData {
       id: number;
       name: string;
       durationMs: number;
-      artists: Array<{ id: number; name: string }>;
-      albums: Array<{ id: number; name: string }>;
+      artists: Array<{ id: number; name: string; image?: string }>;
+      albums: Array<{ id: number; name: string; image?: string }>;
     };
   }>;
   recentStreams: Array<{
+    id?: string;
     endTime: string;
     playedMs: number;
-    trackName: string;       // flat string field
-    artistIds: number[];     // numeric IDs only — no artist names
+    trackId: number;
+    trackName: string;
+    albumId?: number;
+    artistIds: number[];
   }>;
   fetchedAt: number;
 }
 
-/** Synthetic plays from rank position: pos1≈200, pos10≈95, pos50≈50, pos100≈32 */
-function playsFromPosition(position: number): number {
-  return Math.max(2, Math.round(200 / Math.pow(position, 0.55)));
+/** Convert a ranking position to an affinity score. NOT plays — never plays. */
+function affinityFromPosition(position: number): number {
+  return Math.max(1, Math.round(150 / Math.pow(position, 0.55)));
+}
+
+function genreEvidenceFromStatsFm(genres: string[]): GenreEvidence[] {
+  return genres.map((g) => ({
+    rawName: g,
+    normalizedName: g.toLowerCase().trim(),
+    source: 'statsfm' as const,
+    weight: 0.85,
+    confidence: 0.85,
+  }));
 }
 
 export class StatsFmApiAdapter {
   readonly name = 'statsfm-api';
 
   convert(data: StatsFmApiData): RawMusicData {
-    const events: RawListeningEvent[] = [];
-    const now = new Date();
+    const importedAt = new Date(data.fetchedAt);
+    const baseProvenance: DataProvenance = {
+      source: 'statsfm-stream',
+      adapter: 'StatsFmApiAdapter',
+      importedAt,
+      confidence: 1,
+    };
 
-    // ── Genre map: artistName.lower → primary genre ──────────────────────────
-    // Built from topArtists since that's the only source of genre info.
-    const artistGenres = new Map<string, string>();
-    const artistIdToName = new Map<number, string>();
+    // ── Build lookup indexes from topArtists ─────────────────────────────────
+    const artistNameByStatsFmId = new Map<number, string>();
+    const artistGenreEvidenceByStatsFmId = new Map<number, GenreEvidence[]>();
+    const artistImageByStatsFmId = new Map<number, string | undefined>();
+
     for (const item of data.topArtists) {
-      const { name, genres, id } = item.artist;
-      artistIdToName.set(id, name);
-      if (genres.length > 0) artistGenres.set(name.toLowerCase(), genres[0]!);
+      const { id, name, genres, image } = item.artist;
+      artistNameByStatsFmId.set(id, name);
+      artistGenreEvidenceByStatsFmId.set(id, genreEvidenceFromStatsFm(genres));
+      artistImageByStatsFmId.set(id, image);
     }
 
-    // ── Track lookup: trackName.lower → topTrack item ─────────────────────────
-    // Used to resolve artist name for recentStreams (which only have trackName).
-    const trackByName = new Map<string, StatsFmApiData['topTracks'][0]>();
+    // ── Build lookup indexes from topTracks ──────────────────────────────────
+    const topTrackByStatsFmId = new Map<number, StatsFmApiData['topTracks'][0]>();
+    const topTrackByNormalizedName = new Map<string, StatsFmApiData['topTracks'][0]>();
+
     for (const item of data.topTracks) {
-      trackByName.set(item.track.name.toLowerCase(), item);
+      topTrackByStatsFmId.set(item.track.id, item);
+      const nameKey = item.track.name.toLowerCase().trim();
+      if (!topTrackByNormalizedName.has(nameKey)) {
+        topTrackByNormalizedName.set(nameKey, item);
+      }
     }
 
-    // ── 1. Real events from recentStreams ────────────────────────────────────
-    const recentTrackPlays = new Map<string, number>();  // key → how many we've already counted
+    // ── 1. Process recentStreams as REAL listening events ─────────────────────
+    // Partial events (no artistName) are PRESERVED, not dropped.
+    const events: RawListeningEvent[] = [];
+    let matchedById = 0;
+    let matchedByName = 0;
+    let unmatched = 0;
+    let partialCount = 0;
+    let resolvedCount = 0;
 
     for (const stream of data.recentStreams) {
       if (!stream.trackName || !stream.endTime) continue;
 
-      // Look up artist via trackName → topTracks match
-      const matched = trackByName.get(stream.trackName.toLowerCase());
-      const artistName = matched?.track.artists[0]?.name;
-      if (!artistName) continue;  // can't add without artist name
+      const matchedByIdItem = topTrackByStatsFmId.get(stream.trackId);
+      const matchedByNameItem = matchedByIdItem
+        ? undefined
+        : topTrackByNormalizedName.get(stream.trackName.toLowerCase().trim());
+      const matchedTrack = matchedByIdItem ?? matchedByNameItem;
 
-      const albumName = matched?.track.albums[0]?.name;
-      const genre = artistGenres.get(artistName.toLowerCase());
-      const key = `${artistName}::${stream.trackName}`;
-      recentTrackPlays.set(key, (recentTrackPlays.get(key) ?? 0) + 1);
+      if (matchedByIdItem) matchedById++;
+      else if (matchedByNameItem) matchedByName++;
+      else unmatched++;
+
+      const primaryArtistId = stream.artistIds[0];
+      const artistName: string | undefined =
+        matchedTrack?.track.artists[0]?.name ??
+        (primaryArtistId !== undefined
+          ? artistNameByStatsFmId.get(primaryArtistId)
+          : undefined);
+
+      const genreEvidence: GenreEvidence[] =
+        (primaryArtistId !== undefined
+          ? artistGenreEvidenceByStatsFmId.get(primaryArtistId)
+          : undefined) ?? [];
+
+      const resolutionStatus: ResolutionStatus = artistName ? 'resolved' : 'partial';
+      if (resolutionStatus === 'resolved') resolvedCount++;
+      else partialCount++;
 
       events.push({
         trackTitle:       stream.trackName,
-        artistName,
-        albumTitle:       albumName,
+        artistName,                    // may be undefined — partial event, kept
+        albumTitle:       matchedTrack?.track.albums[0]?.name,
         playedAt:         new Date(stream.endTime),
-        durationPlayedMs: stream.playedMs > 0 ? stream.playedMs : (matched?.track.durationMs ?? 180_000),
-        genreHint:        genre,
+        durationPlayedMs:
+          stream.playedMs > 0
+            ? stream.playedMs
+            : (matchedTrack?.track.durationMs ?? 0),
+        trackExternalIds:  { statsfm: String(stream.trackId) },
+        artistExternalIds: primaryArtistId !== undefined
+          ? { statsfm: String(primaryArtistId) }
+          : undefined,
+        albumExternalIds:  stream.albumId !== undefined
+          ? { statsfm: String(stream.albumId) }
+          : undefined,
+        genreEvidence,
+        provenance: {
+          ...baseProvenance,
+          sourceRecordId: stream.id ?? String(stream.trackId),
+          confidence: artistName ? 1 : 0.75,
+        },
+        resolutionStatus,
       });
     }
 
-    // ── 2. Synthetic events from topTracks position rank ─────────────────────
-    // streams=null for users without imported history, so position is all we have.
-    for (const item of data.topTracks) {
-      const trackName  = item.track.name;
-      const artistName = item.track.artists[0]?.name;
-      if (!trackName || !artistName) continue;
+    // ── 2. Process topArtists → ProfileSignal[] (NOT events) ─────────────────
+    const profileSignals: ProfileSignal[] = [];
 
-      const albumName  = item.track.albums[0]?.name;
-      const genre      = artistGenres.get(artistName.toLowerCase());
-      const key        = `${artistName}::${trackName}`;
-      const alreadyCounted = recentTrackPlays.get(key) ?? 0;
-      const synthetic  = Math.max(0, playsFromPosition(item.position) - alreadyCounted);
-
-      for (let i = 0; i < synthetic; i++) {
-        const t = Math.pow(Math.random(), 1.5);  // recency bias
-        events.push({
-          trackTitle:       trackName,
-          artistName,
-          albumTitle:       albumName,
-          playedAt:         new Date(now.getTime() - t * 730 * 86_400_000),
-          durationPlayedMs: item.track.durationMs || 180_000,
-          genreHint:        genre,
-        });
-      }
+    for (const item of data.topArtists) {
+      profileSignals.push({
+        kind: 'statsfm-top-artist',
+        range: 'lifetime',
+        artistName:   item.artist.name,
+        position:     item.position,
+        streamCount:  item.streams ?? undefined,
+        affinityScore: affinityFromPosition(item.position),
+        artistExternalIds: { statsfm: String(item.artist.id) },
+        imageUrl:     item.artist.image,
+        genreEvidence: genreEvidenceFromStatsFm(item.artist.genres),
+        provenance: {
+          source: 'statsfm-stream',
+          adapter: 'StatsFmApiAdapter',
+          importedAt,
+          confidence: item.streams != null ? 0.9 : 0.7,
+        },
+      });
     }
 
-    events.sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
+    // ── 3. Process topTracks → ProfileSignal[] (NOT events) ──────────────────
+    for (const item of data.topTracks) {
+      const primaryArtistId = item.track.artists[0]?.id;
+      const genreEv: GenreEvidence[] =
+        (primaryArtistId !== undefined
+          ? artistGenreEvidenceByStatsFmId.get(primaryArtistId)
+          : undefined) ?? [];
+
+      profileSignals.push({
+        kind: 'statsfm-top-track',
+        range: 'lifetime',
+        trackTitle:   item.track.name,
+        artistName:   item.track.artists[0]?.name,
+        albumTitle:   item.track.albums[0]?.name,
+        position:     item.position,
+        streamCount:  item.streams ?? undefined,
+        affinityScore: affinityFromPosition(item.position),
+        trackExternalIds:  { statsfm: String(item.track.id) },
+        artistExternalIds: primaryArtistId !== undefined
+          ? { statsfm: String(primaryArtistId) }
+          : undefined,
+        genreEvidence: genreEv,
+        provenance: {
+          source: 'statsfm-stream',
+          adapter: 'StatsFmApiAdapter',
+          importedAt,
+          confidence: item.streams != null ? 0.85 : 0.65,
+        },
+      });
+    }
+
+    // ── 4. DataQualityReport ──────────────────────────────────────────────────
+    const artistsTotal = data.topArtists.length;
+    const artistsWithGenre = data.topArtists.filter(
+      (a) => a.artist.genres.length > 0,
+    ).length;
+
+    const warnings: string[] = [];
+    if (unmatched > 0)
+      warnings.push(`${unmatched} streams could not be matched to a known artist.`);
+    if (data.topArtists.some((a) => a.streams === null))
+      warnings.push(
+        'streams=null: user has no imported Spotify history in stats.fm. ' +
+        'Cosmos uses affinity signals from ranking positions, not exact play counts.',
+      );
+
+    const importDiagnostics: DataQualityReport = {
+      importedAt,
+      sourceAdapter: 'StatsFmApiAdapter',
+      rawEvents:     data.recentStreams.length,
+      realEvents:    resolvedCount,
+      partialEvents: partialCount,
+      unresolvedEvents: 0,
+      profileSignals: profileSignals.length,
+      rankingSignals: profileSignals.length,
+      followedSignals: 0,
+      syntheticEventsCreated: 0,   // invariant — never > 0 in this adapter
+      tracksMatchedById:   matchedById,
+      tracksMatchedByName: matchedByName,
+      tracksUnmatched:     unmatched,
+      artistsTotal,
+      artistsWithGenre,
+      artistsWithoutGenre: artistsTotal - artistsWithGenre,
+      genreCoverageRatio:  artistsTotal > 0 ? artistsWithGenre / artistsTotal : 0,
+      genresFromStatsFm:   artistsWithGenre,
+      genresFromSpotify:   0,
+      genresFromLastFm:    0,
+      genresFromMusicBrainz: 0,
+      genresUnknown: artistsTotal - artistsWithGenre,
+      warnings,
+    };
 
     return {
       source:     `statsfm-api:${data.user.customId}`,
-      importedAt: new Date(data.fetchedAt),
+      importedAt,
       events,
+      profileSignals,
+      importDiagnostics,
     };
   }
 }

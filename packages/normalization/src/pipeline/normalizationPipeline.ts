@@ -13,6 +13,7 @@ import type {
   Album,
   Track,
   ListeningEvent,
+  GenreEvidence,
 } from '@music-cosmos/domain';
 import { genreAliasMap, fallbackGenreId } from '@music-cosmos/config';
 import { normalizeArtistName, normalizeTrackTitle, normalizeAlbumTitle } from '../dedupe/artistNormalizer.js';
@@ -21,6 +22,31 @@ import { aggregateStats } from '../metrics/metricsAggregator.js';
 export interface NormalizationConfig {
   genreAliasMap?: Map<string, string>;
   fallbackGenre?: string;
+}
+
+/** Resolve primary genre from GenreEvidence[] or legacy genreHint string. */
+function resolveGenreFromEvidence(
+  evidence: GenreEvidence[] | undefined,
+  hint: string | undefined,
+  aliasMap: Map<string, string>,
+  fallback: string,
+): ReturnType<typeof genreId> {
+  // Try genreEvidence first (new path)
+  if (evidence && evidence.length > 0) {
+    // Pick highest-confidence evidence
+    const best = [...evidence].sort((a, b) => b.weight * b.confidence - a.weight * a.confidence)[0];
+    if (best) {
+      const name = best.normalizedName || best.rawName.toLowerCase().trim();
+      const resolved = aliasMap.get(name);
+      if (resolved) return genreId(resolved);
+    }
+  }
+  // Fall back to legacy genreHint
+  if (hint) {
+    const resolved = aliasMap.get(hint.toLowerCase().trim());
+    if (resolved) return genreId(resolved);
+  }
+  return genreId(fallback);
 }
 
 export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): MusicDataset {
@@ -37,12 +63,8 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
   const trackKeyToId = new Map<string, ReturnType<typeof trackId>>();
   const albumKeyToId = new Map<string, ReturnType<typeof albumId>>();
 
-  function resolveGenreId(hint: string | undefined): ReturnType<typeof genreId> {
-    if (!hint) return genreId(fallback);
-    const normalized = hint.toLowerCase().trim();
-    const resolved = aliasMap.get(normalized);
-    return resolved ? genreId(resolved) : genreId(fallback);
-  }
+  // Fallback name for streams where artistName couldn't be resolved
+  const PARTIAL_ARTIST_NAME = 'Unknown Artist';
 
   function ensureGenre(gId: ReturnType<typeof genreId>, name: string): void {
     if (!genres.has(gId)) {
@@ -50,16 +72,24 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
     }
   }
 
-  function getOrCreateArtist(name: string, genreHint?: string): ReturnType<typeof artistId> {
+  function getOrCreateArtist(
+    name: string,
+    genreEvidence?: GenreEvidence[],
+    genreHint?: string,
+    isPartial = false,
+  ): ReturnType<typeof artistId> {
     const key = normalizeArtistName(name);
     const existing = artistKeyToId.get(key);
+
     if (existing !== undefined) {
-      // If we now have a genre hint and the artist was previously assigned to fallback, upgrade it
-      if (genreHint) {
+      // Upgrade genre if this event brings better genre evidence
+      const hasEvidence = (genreEvidence && genreEvidence.length > 0) || genreHint;
+      if (hasEvidence) {
         const artist = artists.get(existing);
         if (artist && String(artist.primaryGenreId) === fallback) {
-          const gId = resolveGenreId(genreHint);
-          ensureGenre(gId, genreHint);
+          const gId = resolveGenreFromEvidence(genreEvidence, genreHint, aliasMap, fallback);
+          const genreName = genreEvidence?.[0]?.rawName ?? genreHint ?? 'Unknown';
+          ensureGenre(gId, genreName);
           artist.primaryGenreId = gId;
           artist.genreIds = [gId];
         }
@@ -69,8 +99,9 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
 
     const id = artistId(`a:${key.replace(/\s+/g, '-')}`);
     artistKeyToId.set(key, id);
-    const gId = resolveGenreId(genreHint);
-    ensureGenre(gId, genreHint ?? 'Unknown');
+    const gId = resolveGenreFromEvidence(genreEvidence, genreHint, aliasMap, fallback);
+    const genreName = genreEvidence?.[0]?.rawName ?? genreHint ?? 'Unknown';
+    ensureGenre(gId, genreName);
     artists.set(id, {
       id,
       name,
@@ -79,7 +110,7 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
       genreIds: [gId],
       aliases: [],
       externalIds: {},
-      isUnknown: false,
+      isUnknown: isPartial,
     });
     return id;
   }
@@ -109,24 +140,26 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
   }
 
   function getOrCreateTrack(
-    raw: RawListeningEvent,
+    rawEvent: RawListeningEvent,
     aId: ReturnType<typeof artistId>,
     alId: ReturnType<typeof albumId> | undefined,
   ): ReturnType<typeof trackId> {
-    const key = `${String(aId)}::${normalizeTrackTitle(raw.trackTitle)}`;
+    const key = `${String(aId)}::${normalizeTrackTitle(rawEvent.trackTitle)}`;
     const existing = trackKeyToId.get(key);
     if (existing !== undefined) return existing;
 
-    const id = trackId(`t:${String(aId)}-${normalizeTrackTitle(raw.trackTitle).replace(/\s+/g, '-')}`);
+    const id = trackId(
+      `t:${String(aId)}-${normalizeTrackTitle(rawEvent.trackTitle).replace(/\s+/g, '-')}`,
+    );
     trackKeyToId.set(key, id);
     tracks.set(id, {
       id,
-      title: raw.trackTitle,
+      title: rawEvent.trackTitle,
       artistId: aId,
       albumId: alId,
-      durationMs: raw.durationPlayedMs > 0 ? raw.durationPlayedMs : undefined,
+      durationMs: rawEvent.durationPlayedMs > 0 ? rawEvent.durationPlayedMs : undefined,
       genreIds: [],
-      externalIds: raw.externalIds ?? {},
+      externalIds: rawEvent.externalIds ?? {},
       isUnknown: false,
     });
     if (alId) {
@@ -138,9 +171,19 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
     return id;
   }
 
+  // ── Ingest real listening events ────────────────────────────────────────────
   let eventCounter = 0;
   for (const rawEvent of raw.events) {
-    const aId = getOrCreateArtist(rawEvent.artistName, rawEvent.genreHint);
+    // artistName is now optional. Partial events (no artist) get a fallback.
+    const isPartial = !rawEvent.artistName;
+    const resolvedArtistName = rawEvent.artistName?.trim() || PARTIAL_ARTIST_NAME;
+
+    const aId = getOrCreateArtist(
+      resolvedArtistName,
+      rawEvent.genreEvidence,
+      rawEvent.genreHint,
+      isPartial,
+    );
     const alId = getOrCreateAlbum(rawEvent.albumTitle, aId);
     const tId = getOrCreateTrack(rawEvent, aId, alId);
 
@@ -155,9 +198,26 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
     });
   }
 
+  // ── Ingest profile signals (rankings, followed, etc.) ────────────────────────
+  // Signals create entities but do NOT contribute to ListeningStats.
+  // They ensure artists/tracks from signals appear in the dataset
+  // even if they have no real listening events (e.g. stats.fm with streams=null).
+  for (const signal of raw.profileSignals ?? []) {
+    if (!signal.artistName) continue;
+
+    // Create artist entity from signal (may already exist from events above)
+    getOrCreateArtist(
+      signal.artistName,
+      signal.genreEvidence,
+      undefined,
+      false,
+    );
+  }
+
+  // ── Aggregate stats (ONLY from real listening events) ───────────────────────
   const stats = aggregateStats(events, genres, artists, albums, tracks);
 
-  const datasetId = `${raw.source}-${raw.importedAt.toISOString()}-${events.length}`;
+  const datasetId = `${raw.source}-${raw.importedAt.toISOString()}-${events.length}-${raw.profileSignals?.length ?? 0}`;
   return {
     id: datasetId,
     genres,
