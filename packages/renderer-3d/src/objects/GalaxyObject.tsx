@@ -52,7 +52,9 @@ export function GalaxyObject({ node, onClick, isSelected, particleOpacity = 0.55
   }, [positions, colors]);
 
   const effectiveOpacity = dimmed ? particleOpacity * 0.15 : particleOpacity;
-  const coreOpacity = dimmed ? 0.2 : (isSelected ? 1 : 0.7);
+  // Fully opaque by default so HDR values (×3) reach the bloom buffer.
+  // Only reduce opacity when dimmed (another entity is selected).
+  const coreOpacity = dimmed ? 0.18 : 1;
 
   return (
     <group position={[position.x, position.y, position.z]}>
@@ -82,7 +84,7 @@ export function GalaxyObject({ node, onClick, isSelected, particleOpacity = 0.55
             visualProps.color[1] * 3,
             visualProps.color[2] * 3,
           )}
-          transparent
+          transparent={dimmed}
           opacity={coreOpacity}
           toneMapped={false}
         />
