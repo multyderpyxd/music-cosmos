@@ -1,13 +1,23 @@
 import { useState, useEffect } from 'react';
+import { GalaxyIcon, StarIcon, PlanetIcon, MoonIcon, AsteroidIcon } from '../icons/Icons.js';
 
 interface HoverTooltipProps {
   label: string | null;
   entityType?: string;
 }
 
-const ICONS: Record<string, string> = {
-  galaxy: '🌌', star: '⭐', planet: '🪐', satellite: '🌙', 'asteroid-belt': '💫',
-};
+function TypeIcon({ type }: { type?: string }) {
+  if (!type) return null;
+  const s = 12;
+  switch (type) {
+    case 'galaxy':        return <GalaxyIcon size={s} />;
+    case 'star':          return <StarIcon size={s} />;
+    case 'planet':        return <PlanetIcon size={s} />;
+    case 'satellite':     return <MoonIcon size={s} />;
+    case 'asteroid-belt': return <AsteroidIcon size={s} />;
+    default: return null;
+  }
+}
 
 export function HoverTooltip({ label, entityType }: HoverTooltipProps) {
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -24,25 +34,30 @@ export function HoverTooltip({ label, entityType }: HoverTooltipProps) {
     <div
       style={{
         position: 'fixed',
-        left: pos.x + 14,
-        top: pos.y - 10,
-        background: 'rgba(5, 5, 20, 0.9)',
-        border: '1px solid #2a2a5f',
-        borderRadius: 8,
-        padding: '5px 10px',
-        color: '#ddd',
-        fontSize: 13,
+        left: pos.x + 16,
+        top: pos.y - 12,
+        background: 'rgba(3, 3, 12, 0.94)',
+        border: '1px solid rgba(255, 255, 255, 0.07)',
+        borderRadius: 7,
+        padding: '5px 11px',
+        color: '#cbd5e1',
+        fontSize: 12,
         pointerEvents: 'none',
         zIndex: 200,
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
+        gap: 7,
         whiteSpace: 'nowrap',
-        backdropFilter: 'blur(8px)',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+        backdropFilter: 'blur(12px)',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+        letterSpacing: 0.2,
       }}
     >
-      {entityType && <span style={{ fontSize: 14 }}>{ICONS[entityType] ?? '◦'}</span>}
+      {entityType && (
+        <span style={{ color: '#475569', display: 'flex' }}>
+          <TypeIcon type={entityType} />
+        </span>
+      )}
       {label}
     </div>
   );

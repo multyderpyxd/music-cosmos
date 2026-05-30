@@ -1,6 +1,6 @@
 import { useMemo, useEffect } from 'react';
 import { CosmosCanvas } from '@music-cosmos/renderer-3d';
-import { SearchBar, VisualLegend, HoverTooltip } from '@music-cosmos/ui';
+import { SearchBar, VisualLegend, HoverTooltip, HomeIcon, PauseIcon, PlayIcon, UnlockIcon, UploadIcon } from '@music-cosmos/ui';
 import { useUIStore } from '../stores/ui-store.js';
 import { useCosmosStore } from '../stores/cosmos-store.js';
 import type { VisualScene, VisualNode } from '@music-cosmos/layout-engine';
@@ -119,74 +119,57 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
       <HoverTooltip label={hoveredNode?.label ?? null} entityType={hoveredNode?.entityType} />
 
       {/* Bottom-right: reset + pause */}
-      <div style={{
-        position: 'absolute', bottom: 24, right: 24,
-        display: 'flex', flexDirection: 'column', gap: 8, zIndex: 100,
-      }}>
+      <div style={{ position: 'absolute', bottom: 24, right: 24, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 100 }}>
         <button
+          className="ui-ctrl-btn"
           onClick={resetCamera}
           title="Reset to universe view"
-          style={{ ...circleBtn, background: 'rgba(5,5,20,0.82)', border: '1px solid #1e1e3f', color: '#555', fontSize: 16 }}
+          aria-label="Reset camera to universe view"
         >
-          🏠
+          <HomeIcon size={16} />
         </button>
         <button
+          className={`ui-ctrl-btn${isPaused ? ' is-active' : ''}`}
           onClick={togglePause}
-          title={isPaused ? 'Resume motion' : 'Pause motion'}
-          style={{
-            ...circleBtn,
-            background: isPaused ? 'rgba(52,211,153,0.25)' : 'rgba(5,5,20,0.82)',
-            border: isPaused ? '1px solid rgba(52,211,153,0.7)' : '1px solid #1e1e3f',
-            color: isPaused ? '#6ee7b7' : '#555',
-            fontSize: 18,
-            boxShadow: isPaused ? '0 2px 12px rgba(52,211,153,0.2)' : 'none',
-          }}
+          title={isPaused ? 'Resume orbital motion' : 'Pause orbital motion'}
+          aria-label={isPaused ? 'Resume' : 'Pause'}
+          aria-pressed={isPaused}
         >
-          {isPaused ? '▶' : '⏸'}
+          {isPaused ? <PlayIcon size={15} /> : <PauseIcon size={15} />}
         </button>
       </div>
 
+      {/* Unfix camera — visible when tracking an orbiting body */}
       {isTrackingEntity && (
         <button
+          className="ui-unfix-btn"
           onClick={() => setTracking(false)}
-          style={{
-            position: 'absolute', bottom: 90, left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'rgba(107,72,255,0.25)', border: '1px solid rgba(107,72,255,0.7)',
-            borderRadius: 20, padding: '7px 18px',
-            color: '#c4b5fd', fontSize: 12, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 7,
-            backdropFilter: 'blur(10px)',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            letterSpacing: 0.5, zIndex: 100,
-            boxShadow: '0 2px 12px rgba(107,72,255,0.25)',
-          }}
+          style={{ position: 'absolute', bottom: 90, left: '50%', transform: 'translateX(-50%)', zIndex: 100 }}
+          aria-label="Release camera from tracked body"
         >
-          🔓 Unfix camera
+          <UnlockIcon size={13} />
+          <span style={{ fontFamily: 'system-ui', fontSize: 11, letterSpacing: 0.3 }}>Unfix camera</span>
         </button>
       )}
 
-      {/* Top-left: stats + import */}
-      <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* Top-left: node stats + import */}
+      <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', alignItems: 'center', gap: 6, zIndex: 100 }}>
         <div style={{
-          background: 'rgba(5,5,20,0.7)', border: '1px solid #1e1e3f',
-          borderRadius: 8, padding: '5px 10px',
-          fontSize: 11, color: '#555', fontFamily: 'monospace', backdropFilter: 'blur(8px)',
+          background: 'rgba(5,5,20,0.82)', border: '1px solid rgba(255,255,255,0.06)',
+          borderRadius: 7, padding: '5px 10px',
+          fontSize: 10, color: '#334155', fontFamily: 'monospace', backdropFilter: 'blur(12px)',
+          letterSpacing: 0.3,
         }}>
-          {scene.metadata.renderedNodes}/{scene.metadata.totalNodes} · seed {scene.metadata.seed}
+          {scene.metadata.renderedNodes}/{scene.metadata.totalNodes} · {scene.metadata.seed}
         </div>
         <button
+          className="ui-pill-btn"
           onClick={toggleImportPanel}
-          title="Import your music data"
-          style={{
-            background: 'rgba(107,72,255,0.18)', border: '1px solid rgba(107,72,255,0.5)',
-            borderRadius: 8, padding: '5px 12px', color: '#a78bfa', fontSize: 11, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 5,
-            backdropFilter: 'blur(8px)',
-            fontFamily: 'system-ui, -apple-system, sans-serif', letterSpacing: 0.3, zIndex: 100,
-          }}
+          aria-label={rawData?.source === 'mock' || !rawData ? 'Load your music data' : 'Change music data source'}
+          title="Import music data from stats.fm or Spotify"
         >
-          📂 {rawData?.source === 'mock' || !rawData ? 'Load your music' : 'Change data'}
+          <UploadIcon size={12} />
+          <span>{rawData?.source === 'mock' || !rawData ? 'Load your music' : 'Change data'}</span>
         </button>
       </div>
 
@@ -195,8 +178,3 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
   );
 }
 
-const circleBtn: React.CSSProperties = {
-  width: 42, height: 42, borderRadius: '50%', cursor: 'pointer',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  backdropFilter: 'blur(10px)', transition: 'all 0.2s ease',
-};

@@ -1,3 +1,5 @@
+import { GalaxyIcon, StarIcon, PlanetIcon, MoonIcon, SparkleIcon } from '@music-cosmos/ui';
+
 interface EntityTypeTogglesProps {
   activeTypes: Set<string>;
   onToggle: (type: string) => void;
@@ -6,10 +8,10 @@ interface EntityTypeTogglesProps {
 }
 
 const TOGGLES = [
-  { type: 'galaxy',   label: 'Galaxies', icon: '🌌' },
-  { type: 'star',     label: 'Stars',    icon: '⭐' },
-  { type: 'planet',   label: 'Planets',  icon: '🪐' },
-  { type: 'satellite',label: 'Moons',    icon: '🌙' },
+  { type: 'galaxy',    label: 'Galaxies', Icon: GalaxyIcon },
+  { type: 'star',      label: 'Stars',    Icon: StarIcon },
+  { type: 'planet',    label: 'Planets',  Icon: PlanetIcon },
+  { type: 'satellite', label: 'Moons',    Icon: MoonIcon },
 ] as const;
 
 const OPACITY_STEPS = [0, 0.25, 0.55, 0.85];
@@ -24,94 +26,67 @@ export function EntityTypeToggles({
 
   function nextOpacity() {
     const idx = OPACITY_STEPS.findIndex((v) => Math.abs(v - galaxyParticleOpacity) < 0.05);
-    const next = OPACITY_STEPS[(idx + 1) % OPACITY_STEPS.length];
-    onParticleOpacityChange(next ?? 0.55);
+    const next = OPACITY_STEPS[(idx + 1) % OPACITY_STEPS.length] ?? 0.55;
+    onParticleOpacityChange(next);
   }
 
   return (
-    <div style={containerStyle}>
-      {TOGGLES.map(({ type, label, icon }) => {
+    <div style={barStyle} aria-label="Entity visibility filters">
+      {TOGGLES.map(({ type, label, Icon }) => {
         const isActive = !showAll && activeTypes.has(type);
-        const isVisible = showAll || activeTypes.has(type);
+        const isDimmed = !showAll && !activeTypes.has(type);
         return (
           <button
             key={type}
-            title={showAll ? `Show only ${label}` : (isActive ? `Add ${label} / deselect` : `Add ${label}`)}
-            style={{
-              ...btnStyle,
-              background: isActive
-                ? 'rgba(107,72,255,0.25)'
-                : 'none',
-              border: isActive
-                ? '1px solid rgba(107,72,255,0.7)'
-                : '1px solid transparent',
-              color: isVisible ? '#ddd' : '#333',
-              opacity: isVisible ? 1 : 0.45,
-            }}
+            className={`ui-toggle-btn${isActive ? ' is-active' : ''}${isDimmed ? ' is-dimmed' : ''}`}
             onClick={() => onToggle(type)}
+            aria-pressed={isActive}
+            aria-label={isActive ? `Remove ${label} filter` : `Show only ${label}`}
+            title={showAll ? `Filter to ${label} only` : (isActive ? `Deselect ${label}` : `Add ${label}`)}
           >
-            <span style={{ fontSize: 18 }}>{icon}</span>
-            <span style={{ fontSize: 10, marginTop: 2 }}>{label}</span>
+            <Icon size={14} />
+            <span style={{ fontSize: 11, letterSpacing: 0.3 }}>{label}</span>
           </button>
         );
       })}
 
-      {/* Galaxy nebula particle opacity toggle */}
-      <div style={dividerStyle} />
+      <span style={divStyle} role="separator" aria-hidden />
+
       <button
-        title={`Galaxy nebula opacity: ${Math.round(galaxyParticleOpacity * 100)}%\nClick to cycle`}
-        style={{
-          ...btnStyle,
-          opacity: galaxyParticleOpacity === 0 ? 0.4 : 1,
-          color: '#888',
-          fontSize: 11,
-          gap: 2,
-          minWidth: 46,
-        }}
+        className="ui-particle-btn"
         onClick={nextOpacity}
+        aria-label={`Galaxy nebula opacity ${Math.round(galaxyParticleOpacity * 100)}%, click to cycle`}
+        title={`Nebula opacity: ${Math.round(galaxyParticleOpacity * 100)}%`}
       >
-        <span style={{ fontSize: 16 }}>✦</span>
-        <span style={{ fontSize: 9 }}>{Math.round(galaxyParticleOpacity * 100)}%</span>
+        <SparkleIcon size={12} />
+        <span style={{ fontSize: 10, letterSpacing: 0.5, fontVariantNumeric: 'tabular-nums' }}>
+          {Math.round(galaxyParticleOpacity * 100)}%
+        </span>
       </button>
     </div>
   );
 }
 
-const containerStyle: React.CSSProperties = {
+const barStyle: React.CSSProperties = {
   position: 'absolute',
-  bottom: 24,
-  left: '50%',
+  bottom: 24, left: '50%',
   transform: 'translateX(-50%)',
   display: 'flex',
   alignItems: 'center',
-  gap: 3,
-  background: 'rgba(5, 5, 20, 0.85)',
-  border: '1px solid #1e1e3f',
-  borderRadius: 40,
-  padding: '5px 8px',
-  backdropFilter: 'blur(12px)',
+  gap: 2,
+  background: 'rgba(5, 5, 20, 0.88)',
+  border: '1px solid rgba(255, 255, 255, 0.06)',
+  borderRadius: 999,
+  padding: '4px 6px',
+  backdropFilter: 'blur(14px)',
   boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
   zIndex: 100,
   fontFamily: 'system-ui, -apple-system, sans-serif',
 };
 
-const btnStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: 3,
-  background: 'none',
-  border: '1px solid transparent',
-  borderRadius: 28,
-  padding: '7px 13px',
-  color: '#999',
-  cursor: 'pointer',
-  transition: 'all 0.15s ease',
-};
-
-const dividerStyle: React.CSSProperties = {
-  width: 1,
-  height: 28,
-  background: '#1e1e3f',
+const divStyle: React.CSSProperties = {
+  width: 1, height: 20,
+  background: 'rgba(255, 255, 255, 0.06)',
   margin: '0 4px',
+  flexShrink: 0,
 };

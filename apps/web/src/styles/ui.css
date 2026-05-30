@@ -1,0 +1,293 @@
+/*
+ * ui.css — Cosmos UI 2D overlay styles
+ * Scoped to .cosmos-ui. Does NOT touch canvas, WebGL or Three.js.
+ */
+
+/* ── Design tokens ── */
+.cosmos-ui {
+  --c-bg:          rgba(5, 5, 20, 0.88);
+  --c-bg-dark:     rgba(3, 3, 12, 0.96);
+  --c-border:      rgba(255, 255, 255, 0.06);
+  --c-border-hi:   rgba(129, 140, 248, 0.35);
+  --c-text:        #e2e8f0;
+  --c-soft:        #475569;
+  --c-muted:       #1e293b;
+  --c-accent:      #818cf8;
+  --c-accent-bg:   rgba(129, 140, 248, 0.10);
+  --c-accent-hi:   rgba(129, 140, 248, 0.18);
+  --c-green:       #34d399;
+  --blur:          blur(14px);
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     14px;
+  --radius-pill:   999px;
+}
+
+/* ── Focus visible ── */
+.cosmos-ui button:focus-visible,
+.cosmos-ui input:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.cosmos-ui button:focus:not(:focus-visible),
+.cosmos-ui input:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ── Icon-only control buttons (reset / pause) ── */
+.ui-ctrl-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-soft);
+  cursor: pointer;
+  backdrop-filter: var(--blur);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.ui-ctrl-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--c-text);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.ui-ctrl-btn.is-active {
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.4);
+  color: var(--c-green);
+}
+.ui-ctrl-btn.is-active:hover {
+  background: rgba(52, 211, 153, 0.18);
+}
+
+/* ── Pill / badge style button (import data) ── */
+.ui-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(129, 140, 248, 0.3);
+  background: rgba(129, 140, 248, 0.08);
+  color: #a5b4fc;
+  font-size: 11px;
+  cursor: pointer;
+  backdrop-filter: var(--blur);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  letter-spacing: 0.2px;
+}
+.ui-pill-btn:hover {
+  background: rgba(129, 140, 248, 0.15);
+  border-color: rgba(129, 140, 248, 0.5);
+  color: #c7d2fe;
+}
+
+/* ── Unfix camera button ── */
+.ui-unfix-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 18px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(129, 140, 248, 0.4);
+  background: rgba(129, 140, 248, 0.12);
+  color: #c4b5fd;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  backdrop-filter: var(--blur);
+  transition: background 0.15s, border-color 0.15s;
+  box-shadow: 0 2px 16px rgba(129, 140, 248, 0.15);
+}
+.ui-unfix-btn:hover {
+  background: rgba(129, 140, 248, 0.2);
+  border-color: rgba(129, 140, 248, 0.6);
+}
+
+/* ── Entity type toggle buttons ── */
+.ui-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--c-soft);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.ui-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+}
+.ui-toggle-btn.is-active {
+  background: var(--c-accent-bg);
+  border-color: var(--c-border-hi);
+  color: var(--c-accent);
+}
+.ui-toggle-btn.is-active:hover {
+  background: var(--c-accent-hi);
+}
+.ui-toggle-btn.is-dimmed {
+  opacity: 0.35;
+}
+
+/* Particle opacity toggle */
+.ui-particle-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--c-soft);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.ui-particle-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: #94a3b8;
+}
+
+/* ── Cosmos Panel ── */
+.cosmos-panel-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.06) transparent;
+}
+.cosmos-panel-scroll::-webkit-scrollbar { width: 3px; }
+.cosmos-panel-scroll::-webkit-scrollbar-track { background: transparent; }
+.cosmos-panel-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+}
+
+.cosmos-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  padding: 9px 16px;
+  cursor: pointer;
+  text-align: left;
+  color: #fff;
+  transition: background 0.1s;
+}
+.cosmos-panel-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.cosmos-panel-item:hover .item-name {
+  color: #e2e8f0;
+}
+
+.cosmos-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 9px 16px;
+  cursor: pointer;
+  color: var(--c-soft);
+  font-size: 11px;
+  transition: background 0.1s, color 0.1s;
+  text-align: left;
+}
+.cosmos-back-btn:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: #94a3b8;
+}
+
+.cosmos-breadcrumb-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--c-soft);
+  font-size: 11px;
+  font-family: inherit;
+  transition: color 0.1s;
+}
+.cosmos-breadcrumb-btn:hover {
+  color: #94a3b8;
+}
+
+/* ── Search ── */
+.cosmos-search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 9px 14px;
+  cursor: pointer;
+  color: #fff;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background 0.1s;
+}
+.cosmos-search-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ── Legend ── */
+.cosmos-legend-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-soft);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: var(--blur);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.cosmos-legend-toggle:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--c-text);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.cosmos-legend-toggle.is-open {
+  border-color: var(--c-border-hi);
+  color: var(--c-accent);
+  background: var(--c-accent-bg);
+}
+
+/* ── Import modal close ── */
+.cosmos-modal-close {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--c-border);
+  background: transparent;
+  color: var(--c-soft);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+.cosmos-modal-close:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--c-text);
+}

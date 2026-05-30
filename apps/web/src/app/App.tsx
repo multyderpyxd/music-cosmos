@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useCosmosStore } from '../stores/cosmos-store.js';
 import { MusicCosmosScene } from '../scenes/MusicCosmosScene.js';
+import { GalaxyIcon } from '@music-cosmos/ui';
+import '../styles/ui.css';
 
 export function App() {
   const scene     = useCosmosStore((s) => s.scene);
@@ -12,22 +14,27 @@ export function App() {
 
   if (error) {
     return (
-      <div style={centerStyle}>
-        <p style={{ color: '#e74c3c', fontSize: 14 }}>⚠ {error}</p>
+      <div className="cosmos-ui" style={centerStyle}>
+        <p style={{ color: '#ef4444', fontSize: 13, fontFamily: 'system-ui', letterSpacing: 0.3 }}>
+          {error}
+        </p>
       </div>
     );
   }
 
   if (isLoading || !scene) {
     return (
-      <div style={centerStyle}>
+      <div className="cosmos-ui" style={centerStyle}>
         <Loader />
       </div>
     );
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+    <div
+      className="cosmos-ui"
+      style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}
+    >
       <MusicCosmosScene scene={scene} />
     </div>
   );
@@ -35,10 +42,14 @@ export function App() {
 
 function Loader() {
   return (
-    <div style={{ textAlign: 'center', fontFamily: 'monospace', color: '#fff' }}>
-      <div style={{ fontSize: 40, marginBottom: 16, animation: 'spin 3s linear infinite' }}>🌌</div>
-      <p style={{ fontSize: 14, color: '#666', letterSpacing: 4 }}>BUILDING COSMOS</p>
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, fontFamily: 'system-ui', color: '#fff' }}>
+      <div style={{ animation: 'cosmos-spin 4s linear infinite', color: '#818cf8', opacity: 0.8 }}>
+        <GalaxyIcon size={36} />
+      </div>
+      <p style={{ fontSize: 11, color: '#334155', letterSpacing: 5, textTransform: 'uppercase', margin: 0 }}>
+        Building cosmos
+      </p>
+      <style>{`@keyframes cosmos-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

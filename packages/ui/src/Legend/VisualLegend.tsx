@@ -1,91 +1,98 @@
 import { useState } from 'react';
+import {
+  InfoIcon, CloseIcon,
+  GalaxyIcon, StarIcon, PlanetIcon, MoonIcon, AsteroidIcon,
+} from '../icons/Icons.js';
+
+const ENTITIES = [
+  { icon: GalaxyIcon, label: 'Galaxy',        desc: 'Genre' },
+  { icon: StarIcon,   label: 'Star',          desc: 'Artist' },
+  { icon: PlanetIcon, label: 'Planet',        desc: 'Album' },
+  { icon: MoonIcon,   label: 'Moon',          desc: 'Track' },
+  { icon: AsteroidIcon, label: 'Asteroid belt', desc: 'Hidden tracks' },
+];
+
+const ENCODINGS = [
+  { symbol: 'S', label: 'Size',        desc: 'Total plays / listening time' },
+  { symbol: 'L', label: 'Brightness',  desc: 'Recent listening (90-day decay)' },
+  { symbol: 'R', label: 'Orbit radius', desc: 'Album age — older orbits farther' },
+  { symbol: 'V', label: 'Orbit speed',  desc: 'Recent play frequency' },
+  { symbol: 'C', label: 'Color',        desc: 'Genre / stellar temperature' },
+];
 
 export function VisualLegend() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div style={containerStyle}>
-      <button style={toggleStyle} onClick={() => setOpen((v) => !v)} title="Visual legend">
-        {open ? '✕' : 'ℹ'}
+    <div style={{ position: 'absolute', bottom: 24, left: 24, zIndex: 100, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <button
+        className={`cosmos-legend-toggle${open ? ' is-open' : ''}`}
+        onClick={() => setOpen((v) => !v)}
+        aria-label={open ? 'Close visual legend' : 'Open visual legend'}
+        title="Visual legend"
+      >
+        {open ? <CloseIcon size={14} /> : <InfoIcon size={14} />}
       </button>
+
       {open && (
         <div style={panelStyle}>
-          <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: '#9B59B6' }}>
-            Visual Language
-          </h3>
+          <p style={sectionLabel}>Entities</p>
+          {ENTITIES.map(({ icon: Icon, label, desc }) => (
+            <div key={label} style={rowStyle}>
+              <span style={iconCell}><Icon size={13} /></span>
+              <span style={rowLabel}>{label}</span>
+              <span style={rowDesc}>{desc}</span>
+            </div>
+          ))}
 
-          <Section title="Entities">
-            <Row icon="🌌" label="Galaxy" desc="Genre" />
-            <Row icon="⭐" label="Star" desc="Artist" />
-            <Row icon="🪐" label="Planet" desc="Album" />
-            <Row icon="🌙" label="Satellite" desc="Track" />
-            <Row icon="💫" label="Asteroid belt" desc="Hidden tracks" />
-          </Section>
-
-          <Section title="Encoding">
-            <Row icon="📏" label="Size" desc="Total plays / listening time" />
-            <Row icon="✨" label="Brightness" desc="Recent listening (30-day decay)" />
-            <Row icon="📡" label="Orbit radius" desc="Album age (older → farther)" />
-            <Row icon="⚡" label="Orbit speed" desc="Recent play frequency" />
-            <Row icon="🎨" label="Color" desc="Genre / stellar temperature" />
-          </Section>
+          <p style={{ ...sectionLabel, marginTop: 14 }}>Visual encoding</p>
+          {ENCODINGS.map(({ symbol, label, desc }) => (
+            <div key={label} style={rowStyle}>
+              <span style={{ ...iconCell, color: '#818cf8', fontSize: 10, fontWeight: 700, fontFamily: 'monospace' }}>
+                {symbol}
+              </span>
+              <span style={rowLabel}>{label}</span>
+              <span style={rowDesc}>{desc}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 10, color: '#555', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: 6 }}>
-        {title}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Row({ icon, label, desc }: { icon: string; label: string; desc: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
-      <span style={{ fontSize: 14, width: 20 }}>{icon}</span>
-      <span style={{ fontSize: 12, color: '#bbb', width: 90 }}>{label}</span>
-      <span style={{ fontSize: 11, color: '#666' }}>{desc}</span>
-    </div>
-  );
-}
-
-const containerStyle: React.CSSProperties = {
-  position: 'absolute',
-  bottom: 80,
-  left: 16,
-  zIndex: 100,
-  fontFamily: 'system-ui, -apple-system, sans-serif',
-};
-
-const toggleStyle: React.CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: '50%',
-  background: 'rgba(5, 5, 20, 0.85)',
-  border: '1px solid #1e1e3f',
-  color: '#888',
-  cursor: 'pointer',
-  fontSize: 14,
-  backdropFilter: 'blur(12px)',
-};
-
 const panelStyle: React.CSSProperties = {
   position: 'absolute',
   bottom: 44,
   left: 0,
-  width: 280,
-  background: 'rgba(5, 5, 20, 0.95)',
-  border: '1px solid #1e1e3f',
+  width: 290,
+  background: 'rgba(3, 3, 12, 0.96)',
+  border: '1px solid rgba(255, 255, 255, 0.06)',
   borderRadius: 12,
-  padding: 16,
-  color: '#fff',
-  backdropFilter: 'blur(12px)',
-  boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+  padding: '14px 16px',
+  backdropFilter: 'blur(14px)',
+  boxShadow: '0 12px 40px rgba(0,0,0,0.7)',
+};
+
+const sectionLabel: React.CSSProperties = {
+  fontSize: 9, color: '#334155',
+  textTransform: 'uppercase', letterSpacing: 2,
+  margin: '0 0 8px',
+};
+
+const rowStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center',
+  gap: 8, padding: '3px 0',
+};
+
+const iconCell: React.CSSProperties = {
+  width: 18, color: '#475569', display: 'flex', flexShrink: 0,
+};
+
+const rowLabel: React.CSSProperties = {
+  fontSize: 11, color: '#94a3b8', width: 90, flexShrink: 0,
+};
+
+const rowDesc: React.CSSProperties = {
+  fontSize: 10, color: '#334155',
 };
