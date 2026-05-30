@@ -3,7 +3,8 @@ import { useCosmosStore } from '../stores/cosmos-store.js';
 import { UploadIcon, CloseIcon, GalaxyIcon } from '@music-cosmos/ui';
 import { StatsFmConnect } from './StatsFmConnect.js';
 import { LastFmSettings } from './LastFmSettings.js';
-import type { StatsFmApiData } from '@music-cosmos/data-adapters';
+import { SpotifyConnect } from './SpotifyConnect.js';
+import type { StatsFmApiData, SpotifyProfileSnapshot } from '@music-cosmos/data-adapters';
 
 interface ImportPanelProps {
   onClose: () => void;
@@ -38,14 +39,22 @@ export function ImportPanel({ onClose }: ImportPanelProps) {
   const [fileName, setFileName] = useState('');
   const [progressMsg, setProgressMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null!);
-  const importFile = useCosmosStore((s) => s.importFile);
-  const loadFromStatsFm = useCosmosStore((s) => s.loadFromStatsFm);
+  const importFile             = useCosmosStore((s) => s.importFile);
+  const loadFromStatsFm        = useCosmosStore((s) => s.loadFromStatsFm);
+  const loadFromSpotifyProfile = useCosmosStore((s) => s.loadFromSpotifyProfile);
   const error = useCosmosStore((s) => s.error);
 
   const handleStatsFmData = useCallback(async (data: StatsFmApiData) => {
     await loadFromStatsFm(data);
     setTimeout(onClose, 800);
   }, [loadFromStatsFm, onClose]);
+
+  const handleSpotifyData = useCallback(async (snapshot: SpotifyProfileSnapshot) => {
+    await loadFromSpotifyProfile(snapshot);
+    // Save for auto-load on next visit
+    try { localStorage.setItem('cosmos_spotify_snapshot', JSON.stringify(snapshot)); } catch { /* ignore */ }
+    setTimeout(onClose, 800);
+  }, [loadFromSpotifyProfile, onClose]);
 
   const processFile = useCallback(async (file: File) => {
     setFileName(file.name);
@@ -156,12 +165,23 @@ export function ImportPanel({ onClose }: ImportPanelProps) {
           )}
         </div>
 
-        {/* stats.fm live connection — recommended */}
-        <div style={{ marginTop: 16, padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
-          <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>
-            Live connection · Recommended
+        {/* Live connections */}
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* stats.fm */}
+          <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
+            <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>
+              stats.fm · Recommended
+            </div>
+            <StatsFmConnect onData={handleStatsFmData} />
           </div>
-          <StatsFmConnect onData={handleStatsFmData} />
+
+          {/* Spotify OAuth */}
+          <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
+            <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>
+              Spotify · Direct login
+            </div>
+            <SpotifyConnect onData={handleSpotifyData} />
+          </div>
         </div>
 
         {/* File import guides */}
