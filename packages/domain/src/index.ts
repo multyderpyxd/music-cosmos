@@ -12,6 +12,7 @@ export type { Track } from './entities/Track.js';
 export type { Playlist } from './entities/Playlist.js';
 export type { ListeningEvent } from './entities/ListeningEvent.js';
 export type { ListeningStats } from './entities/ListeningStats.js';
+export type { AffinityStats, AffinityScoreBasis, MetricBasis } from './entities/AffinityStats.js';
 
 export type { RawListeningEvent, RawMusicData, ResolutionStatus } from './dataset/RawMusicData.js';
 export type { MusicDataset } from './dataset/MusicDataset.js';

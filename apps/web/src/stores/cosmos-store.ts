@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import type { RawMusicData, MusicDataset } from '@music-cosmos/domain';
 import type { ViewMode } from '@music-cosmos/config';
 import type { VisualScene } from '@music-cosmos/layout-engine';
-import { MockDataAdapter, StatsFmImportAdapter, SpotifyExportAdapter, StatsFmApiAdapter } from '@music-cosmos/data-adapters';
-import type { StatsFmApiData } from '@music-cosmos/data-adapters';
+import { MockDataAdapter, StatsFmImportAdapter, SpotifyExportAdapter, StatsFmApiAdapter, SpotifyProfileSnapshotAdapter, isSpotifyProfileSnapshot } from '@music-cosmos/data-adapters';
+import type { StatsFmApiData, SpotifyProfileSnapshot } from '@music-cosmos/data-adapters';
 import { normalize } from '@music-cosmos/normalization';
 import { mapDatasetToCosmicGraph } from '@music-cosmos/cosmos-engine';
 import { computeLayout } from '@music-cosmos/layout-engine';
@@ -20,6 +20,7 @@ interface CosmosState {
   loadMockData: () => Promise<void>;
   importFile: (file: File) => Promise<void>;
   loadFromStatsFm: (data: StatsFmApiData) => Promise<void>;
+  loadFromSpotifyProfile: (snapshot: SpotifyProfileSnapshot) => Promise<void>;
   recomputeScene: (viewMode: ViewMode) => void;
 }
 
@@ -67,18 +68,23 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const content = await file.text();
-      let adapter;
+      let raw;
       if (file.name.endsWith('.json')) {
         const parsed: unknown = JSON.parse(content);
+        // Auto-detect format
         if (Array.isArray(parsed)) {
-          adapter = new SpotifyExportAdapter();
+          // Spotify extended history
+          raw = await new SpotifyExportAdapter().load(content);
+        } else if (isSpotifyProfileSnapshot(parsed)) {
+          // Spotify profile snapshot (from this app's export or NewsletterAI)
+          raw = new SpotifyProfileSnapshotAdapter().convert(parsed as SpotifyProfileSnapshot);
         } else {
-          adapter = new StatsFmImportAdapter();
+          // stats.fm JSON export
+          raw = await new StatsFmImportAdapter().load(content);
         }
       } else {
         throw new Error('Unsupported file type. Use a JSON export from stats.fm or Spotify.');
       }
-      const raw = await adapter.load(content);
       const { scene, dataset } = await buildScene(raw, 'album');
       set({ rawData: raw, dataset, scene, albumImages: new Map(), isLoading: false });
     } catch (e) {
@@ -93,6 +99,17 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
       const raw = new StatsFmApiAdapter().convert(apiData);
       const { scene, dataset } = await buildScene(raw, 'album');
       set({ rawData: raw, dataset, scene, albumImages, isLoading: false });
+    } catch (e) {
+      set({ error: String(e), isLoading: false });
+    }
+  },
+
+  loadFromSpotifyProfile: async (snapshot: SpotifyProfileSnapshot) => {
+    set({ isLoading: true, error: null });
+    try {
+      const raw = new SpotifyProfileSnapshotAdapter().convert(snapshot);
+      const { scene, dataset } = await buildScene(raw, 'album');
+      set({ rawData: raw, dataset, scene, albumImages: new Map(), isLoading: false });
     } catch (e) {
       set({ error: String(e), isLoading: false });
     }

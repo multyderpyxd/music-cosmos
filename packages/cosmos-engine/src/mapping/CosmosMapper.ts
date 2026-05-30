@@ -1,4 +1,4 @@
-import type { MusicDataset, ListeningStats } from '@music-cosmos/domain';
+import type { MusicDataset, ListeningStats, AffinityStats, MetricBasis } from '@music-cosmos/domain';
 import type { VisualRules, RenderBudget, ViewMode } from '@music-cosmos/config';
 import type { CosmicGraph, CosmicNode, CosmicEdge } from '../types/CosmicTypes.js';
 
@@ -55,14 +55,32 @@ export function mapDatasetToCosmicGraph(
   let galaxyColorIdx = 0;
   for (const [gId, genre] of dataset.genres) {
     const gStats = stats.get(String(gId));
-    if (!gStats) continue;
+    // Show galaxy if it has either real listening stats or artists with affinity
+    const hasArtistsWithData = [...dataset.artists.values()]
+      .filter((a) => a.primaryGenreId === gId)
+      .some((a) => (stats.get(String(a.id))?.totalPlays ?? 0) > 0
+                || (dataset.affinityStats?.get(String(a.id))?.score ?? 0) > 0);
+    if (!gStats && !hasArtistsWithData) continue;
+
+    // Synthetic genre stats from affinity when no real listening data
+    const effectiveGenreStats: ListeningStats = gStats ?? {
+      entityId: gId,
+      entityType: 'genre',
+      totalPlays:     1,
+      totalMinutes:   0,
+      firstPlayedAt:  now,
+      lastPlayedAt:   now,
+      playsLast30Days: 0,
+      playsLast90Days: 0,
+      playsLast365Days: 0,
+    };
 
     const galaxyNodeId = `galaxy:${String(gId)}`;
     const galaxyNode: CosmicNode = {
       id: galaxyNodeId,
       entityType: 'galaxy',
       domainId: String(gId),
-      visualProps: makeGalaxyProps(gStats, genreRange, rules, galaxyColorIdx++),
+      visualProps: makeGalaxyProps(effectiveGenreStats, genreRange, rules, galaxyColorIdx++),
       label: genre.name,
       metadata: { genreId: String(gId) },
     };
@@ -80,31 +98,61 @@ export function mapDatasetToCosmicGraph(
           ? budget.galaxy.maxArtists
           : artistsInGenre.length;
 
+    const affinityStats = dataset.affinityStats;
+
     const sortedArtists = artistsInGenre
-      .map((a) => ({ artist: a, plays: stats.get(String(a.id))?.totalPlays ?? 0 }))
+      .map((a) => {
+        const aId = String(a.id);
+        const realPlays = stats.get(aId)?.totalPlays ?? 0;
+        const affScore  = affinityStats?.get(aId)?.score ?? 0;
+        // Use real plays if available; otherwise affinity score as ordering proxy
+        return { artist: a, plays: realPlays > 0 ? realPlays : affScore };
+      })
+      .filter((a) => a.plays > 0)            // skip entities with no data at all
       .sort((a, b) => b.plays - a.plays)
       .slice(0, artistBudget);
 
-    const artistRange = computeRange(
-      sortedArtists.map((a) => String(a.artist.id)),
-      stats,
-      rules.star.sizeMetric,
-    );
+    // Build artist range using combined real+affinity importance values
+    const artistImportanceMap = new Map<string, number>();
+    for (const { artist, plays } of sortedArtists) {
+      artistImportanceMap.set(String(artist.id), plays);
+    }
+    const artistRange: StatRange = (() => {
+      const vals = [...artistImportanceMap.values()];
+      if (vals.length === 0) return { min: 0, max: 1 };
+      return { min: Math.min(...vals), max: Math.max(...vals) };
+    })();
 
     let starColorIdx = 0;
     for (const { artist } of sortedArtists) {
-      const aStats = stats.get(String(artist.id));
-      if (!aStats) continue;
+      const aId = String(artist.id);
+      const aStats = stats.get(aId);
+      const aAffinity = affinityStats?.get(aId);
 
-      const starNodeId = `star:${String(artist.id)}`;
+      // Build a synthetic ListeningStats from affinity if no real data
+      const effectiveStats: ListeningStats = aStats ?? {
+        entityId: artist.id,
+        entityType: 'artist',
+        totalPlays:     aAffinity?.score ?? 1,
+        totalMinutes:   0,
+        firstPlayedAt:  now,
+        lastPlayedAt:   now,
+        playsLast30Days: 0,
+        playsLast90Days: 0,
+        playsLast365Days: 0,
+      };
+
+      const metricBasis: MetricBasis = aAffinity?.metricBasis ?? (aStats ? 'listening-events' : 'unknown');
+
+      const starNodeId = `star:${aId}`;
       const starNode: CosmicNode = {
         id: starNodeId,
         entityType: 'star',
-        domainId: String(artist.id),
+        domainId: aId,
         parentId: galaxyNodeId,
-        visualProps: makeStarProps(aStats, artistRange, rules, starColorIdx++, now),
+        visualProps: makeStarProps(effectiveStats, artistRange, rules, starColorIdx++, now),
         label: artist.name,
-        metadata: { artistId: String(artist.id) },
+        metadata: { artistId: aId, metricBasis },
       };
       nodes.set(starNodeId, starNode);
 

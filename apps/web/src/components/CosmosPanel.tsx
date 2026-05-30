@@ -116,21 +116,40 @@ export function CosmosPanel({ selectedNode, nodeById, scene, stats, onSelect, on
           </div>
         </div>
 
-        {s ? (
+        {s ? (() => {
+          const metricBasis = selectedNode.metadata['metricBasis'] as string | undefined;
+          const isAffinity = metricBasis === 'profile-affinity';
+          const isMixed    = metricBasis === 'mixed';
+          return (
           <div style={{ marginTop: 14 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0 8px' }}>
-              <StatCell label="Plays"   value={formatNum(s.totalPlays)} accent={accent} />
-              <StatCell label="Time"    value={formatMin(s.totalMinutes)} />
-              <StatCell label="30 days" value={formatNum(s.playsLast30Days)} accent={s.playsLast30Days > 0 ? '#34d399' : undefined} />
-              <StatCell label="90 days" value={formatNum(s.playsLast90Days)} />
-            </div>
-            {s.lastPlayedAt && (
+            {/* Metric basis indicator */}
+            {(isAffinity || isMixed) && (
+              <div style={{ fontSize: 9, color: '#818cf8', marginBottom: 8, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                {isAffinity ? 'Afinidad de perfil · sin historial exacto' : 'Escuchas reales + afinidad de perfil'}
+              </div>
+            )}
+            {isAffinity ? (
+              /* Affinity-only: show affinity score instead of plays */
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 8px' }}>
+                <StatCell label="Afinidad" value={formatNum(s.totalPlays)} accent={accent} />
+                <StatCell label="Fuente" value="Ranking" />
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0 8px' }}>
+                <StatCell label={isMixed ? 'Plays reales' : 'Plays'} value={formatNum(s.totalPlays)} accent={accent} />
+                <StatCell label="Time"    value={formatMin(s.totalMinutes)} />
+                <StatCell label="30 days" value={formatNum(s.playsLast30Days)} accent={s.playsLast30Days > 0 ? '#34d399' : undefined} />
+                <StatCell label="90 days" value={formatNum(s.playsLast90Days)} />
+              </div>
+            )}
+            {!isAffinity && s.lastPlayedAt && (
               <div style={{ fontSize: 10, color: '#1e293b', marginTop: 8, letterSpacing: 0.2 }}>
                 Last heard · {s.lastPlayedAt.toLocaleDateString()}
               </div>
             )}
           </div>
-        ) : (
+          );
+        })() : (
           <p style={{ fontSize: 11, color: '#1e293b', marginTop: 10 }}>No listening data</p>
         )}
 

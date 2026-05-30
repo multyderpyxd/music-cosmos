@@ -14,6 +14,8 @@ import type {
   Track,
   ListeningEvent,
   GenreEvidence,
+  AffinityStats,
+  MetricBasis,
 } from '@music-cosmos/domain';
 import { fallbackGenreId, ALL_GENRES } from '@music-cosmos/config';
 import { normalizeArtistName, normalizeTrackTitle, normalizeAlbumTitle } from '../dedupe/artistNormalizer.js';
@@ -174,23 +176,74 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
   }
 
   // ── Ingest profile signals (rankings, followed, etc.) ────────────────────────
-  // Signals create entities but do NOT contribute to ListeningStats.
-  // They ensure artists/tracks from signals appear in the dataset
-  // even if they have no real listening events (e.g. stats.fm with streams=null).
+  // Signals create artist entities but do NOT contribute to ListeningStats.
   for (const signal of raw.profileSignals ?? []) {
     if (!signal.artistName) continue;
-
-    // Create artist entity from signal (may already exist from events above)
-    getOrCreateArtist(
-      signal.artistName,
-      signal.genreEvidence,
-      undefined,
-      false,
-    );
+    getOrCreateArtist(signal.artistName, signal.genreEvidence, undefined, false);
   }
 
   // ── Aggregate stats (ONLY from real listening events) ───────────────────────
   const stats = aggregateStats(events, genres, artists, albums, tracks);
+
+  // ── Compute AffinityStats from profileSignals ────────────────────────────────
+  // Separate from ListeningStats — must never be used as play counts.
+  const affinityStats = new Map<string, AffinityStats>();
+  const artistsWithRealEvents = new Set(events.map((e) => String(e.artistId)));
+
+  for (const signal of raw.profileSignals ?? []) {
+    if (!signal.artistName || !signal.affinityScore) continue;
+
+    const key = signal.artistName.trim();
+    const normalizedKey = key.toLowerCase().replace(/\s+/g, '-');
+    const aId = artistKeyToId.get(key.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim())
+              ?? artistKeyToId.get(normalizedKey);
+
+    // Find the artist ID by name match
+    let entityId: string | undefined;
+    for (const [k, id] of artistKeyToId) {
+      // Match by normalized artist name
+      if (k.includes(normalizedKey) || normalizedKey.includes(k)) {
+        entityId = String(id);
+        break;
+      }
+    }
+    // Also try exact match
+    if (!entityId) {
+      const exactKey = key.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+      entityId = artistKeyToId.has(exactKey) ? String(artistKeyToId.get(exactKey)!) : undefined;
+    }
+    if (!entityId) continue;
+
+    const hasRealEvents = artistsWithRealEvents.has(entityId);
+    const existing = affinityStats.get(entityId);
+
+    const basis = {
+      source: signal.kind,
+      range: signal.range,
+      contribution: signal.affinityScore,
+      position: signal.position,
+    };
+
+    if (existing) {
+      existing.score += signal.affinityScore;
+      existing.scoreBasis.push(basis);
+      if (hasRealEvents) existing.hasRealListeningEvents = true;
+      // Update metricBasis
+      const metricBasis: MetricBasis =
+        existing.hasRealListeningEvents ? 'mixed' : 'profile-affinity';
+      existing.metricBasis = metricBasis;
+    } else {
+      const metricBasis: MetricBasis = hasRealEvents ? 'mixed' : 'profile-affinity';
+      affinityStats.set(entityId, {
+        entityId,
+        entityType: 'artist',
+        score: signal.affinityScore,
+        scoreBasis: [basis],
+        hasRealListeningEvents: hasRealEvents,
+        metricBasis,
+      });
+    }
+  }
 
   const datasetId = `${raw.source}-${raw.importedAt.toISOString()}-${events.length}-${raw.profileSignals?.length ?? 0}`;
   return {
@@ -200,8 +253,10 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
     albums,
     tracks,
     stats,
+    affinityStats: affinityStats.size > 0 ? affinityStats : undefined,
     events,
     computedAt: new Date(),
     sourceAdapter: raw.source,
+    dataQuality: raw.importDiagnostics,
   };
 }
