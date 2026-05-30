@@ -34,8 +34,9 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
   const toggleImportPanel     = useUIStore((s) => s.toggleImportPanel);
   const resetCamera           = useUIStore((s) => s.resetCamera);
 
-  const dataset = useCosmosStore((s) => s.dataset);
-  const rawData = useCosmosStore((s) => s.rawData);
+  const dataset     = useCosmosStore((s) => s.dataset);
+  const rawData     = useCosmosStore((s) => s.rawData);
+  const albumImages = useCosmosStore((s) => s.albumImages);
 
   // Real stats from the normalized dataset — no longer empty!
   const statsMap = useMemo(() => dataset?.stats ?? new Map(), [dataset]);
@@ -86,6 +87,7 @@ export function MusicCosmosScene({ scene }: MusicCosmosSceneProps) {
         isPaused={isPaused}
         activeEntityTypes={activeEntityTypes}
         galaxyParticleOpacity={galaxyParticleOpacity}
+        albumImages={albumImages}
         resetCameraKey={resetCameraKey}
         onSelect={selectEntity}
         onHover={setHoveredEntity}

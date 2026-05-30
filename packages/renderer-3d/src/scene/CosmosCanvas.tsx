@@ -17,6 +17,7 @@ interface CosmosCanvasProps {
   isPaused?: boolean;
   activeEntityTypes: Set<string>;
   galaxyParticleOpacity: number;
+  albumImages?: Map<string, string>;
   resetCameraKey?: number;
   onSelect: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
@@ -35,6 +36,7 @@ export function CosmosCanvas({
   isPaused = false,
   activeEntityTypes,
   galaxyParticleOpacity,
+  albumImages,
   resetCameraKey,
   onSelect,
   onHover,
@@ -84,6 +86,7 @@ export function CosmosCanvas({
         isPaused={isPaused}
         activeEntityTypes={activeEntityTypes}
         galaxyParticleOpacity={galaxyParticleOpacity}
+        albumImages={albumImages}
       />
 
       {/* Bloom — stars/galaxy cores output HDR values (>1) so this triggers */}

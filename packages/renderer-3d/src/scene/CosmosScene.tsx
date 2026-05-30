@@ -17,6 +17,7 @@ interface CosmosSceneProps {
   isPaused: boolean;
   activeEntityTypes: Set<string>;
   galaxyParticleOpacity: number;
+  albumImages?: Map<string, string>;
 }
 
 export function CosmosScene({
@@ -29,6 +30,7 @@ export function CosmosScene({
   isPaused,
   activeEntityTypes,
   galaxyParticleOpacity,
+  albumImages,
 }: CosmosSceneProps) {
   // What type of entity is currently selected — needed for star bloom logic
   const selectedEntityType = useMemo(() => {
@@ -103,6 +105,7 @@ export function CosmosScene({
         const starPos = node.parentId ? positionMap.get(node.parentId) : undefined;
         const sp: readonly [number, number, number] = starPos ?? [node.position.x, node.position.y, node.position.z];
         const isSelected = node.id === selectedId;
+        const albumTitle = (node.metadata['albumTitle'] as string | undefined) ?? '';
         return (
           <AnimatedPlanet
             key={node.id}
@@ -112,6 +115,7 @@ export function CosmosScene({
             isHovered={node.id === hoveredId}
             isPaused={isPaused}
             dimmed={hasSelection && !isSelected}
+            albumImageUrl={albumImages?.get(albumTitle.toLowerCase())}
             onSelect={onSelect}
             onHover={onHover}
             onLivePosition={isSelected ? handleLivePosition : undefined}

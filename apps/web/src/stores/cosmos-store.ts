@@ -15,6 +15,8 @@ interface CosmosState {
   scene: VisualScene | null;
   isLoading: boolean;
   error: string | null;
+  /** albumTitle.toLowerCase() → image URL (from stats.fm album artwork) */
+  albumImages: Map<string, string>;
   loadMockData: () => Promise<void>;
   importFile: (file: File) => Promise<void>;
   loadFromStatsFm: (data: StatsFmApiData) => Promise<void>;
@@ -30,19 +32,32 @@ async function buildScene(raw: RawMusicData, viewMode: ViewMode): Promise<BuildR
   return { scene, dataset };
 }
 
+/** Extract album title → image URL from stats.fm API data */
+function extractAlbumImages(apiData: StatsFmApiData): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const item of apiData.topTracks) {
+    const album = item.track?.albums?.[0] as { name?: string; image?: string } | undefined;
+    if (album?.name && album.image) {
+      map.set(album.name.toLowerCase(), album.image);
+    }
+  }
+  return map;
+}
+
 export const useCosmosStore = create<CosmosState>((set, get) => ({
   rawData: null,
   dataset: null,
   scene: null,
   isLoading: false,
   error: null,
+  albumImages: new Map(),
 
   loadMockData: async () => {
     set({ isLoading: true, error: null });
     try {
       const raw = await new MockDataAdapter().load();
       const { scene, dataset } = await buildScene(raw, 'album');
-      set({ rawData: raw, dataset, scene, isLoading: false });
+      set({ rawData: raw, dataset, scene, albumImages: new Map(), isLoading: false });
     } catch (e) {
       set({ error: String(e), isLoading: false });
     }
@@ -65,7 +80,7 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
       }
       const raw = await adapter.load(content);
       const { scene, dataset } = await buildScene(raw, 'album');
-      set({ rawData: raw, dataset, scene, isLoading: false });
+      set({ rawData: raw, dataset, scene, albumImages: new Map(), isLoading: false });
     } catch (e) {
       set({ error: String(e), isLoading: false });
     }
@@ -74,9 +89,10 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
   loadFromStatsFm: async (apiData: StatsFmApiData) => {
     set({ isLoading: true, error: null });
     try {
+      const albumImages = extractAlbumImages(apiData);
       const raw = new StatsFmApiAdapter().convert(apiData);
       const { scene, dataset } = await buildScene(raw, 'album');
-      set({ rawData: raw, dataset, scene, isLoading: false });
+      set({ rawData: raw, dataset, scene, albumImages, isLoading: false });
     } catch (e) {
       set({ error: String(e), isLoading: false });
     }

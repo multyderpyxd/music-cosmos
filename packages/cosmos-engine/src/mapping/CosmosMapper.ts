@@ -151,7 +151,7 @@ export function mapDatasetToCosmicGraph(
           parentId: starNodeId,
           visualProps: makePlanetProps(alStats, albumRange, rules, album.releaseYear, now),
           label: album.title,
-          metadata: { albumId: String(album.id), albumType: album.type },
+          metadata: { albumId: String(album.id), albumType: album.type, albumTitle: album.title },
         };
         nodes.set(planetNodeId, planetNode);
 
