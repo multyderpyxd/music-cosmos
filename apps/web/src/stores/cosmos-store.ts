@@ -33,6 +33,53 @@ async function buildScene(raw: RawMusicData, viewMode: ViewMode): Promise<BuildR
   return { scene, dataset };
 }
 
+/**
+ * Asynchronously enriches artists without a known genre using Last.fm tags.
+ * Non-blocking — rebuilds the scene after enrichment if the store setter is provided.
+ * Called AFTER the initial cosmos is displayed.
+ */
+async function enrichWithLastFm(
+  dataset: ReturnType<typeof normalize>,
+  raw: RawMusicData,
+  viewMode: ViewMode,
+  onRebuilt: (result: BuildResult) => void,
+): Promise<void> {
+  try {
+    // Lazy import — only loads if user has a Last.fm API key
+    const { getArtistGenreEvidence, hasLastFmApiKey } = await import('../lib/lastFmApi.js');
+    if (!hasLastFmApiKey()) return;
+
+    const { genreId } = await import('@music-cosmos/domain');
+    const { resolveGenres } = await import('@music-cosmos/normalization');
+
+    // Find artists that resolved to g:unknown
+    const unknownArtists = [...dataset.artists.values()]
+      .filter((a) => String(a.primaryGenreId) === 'g:unknown')
+      .slice(0, 30);   // cap at 30 to avoid hammering the API
+
+    if (unknownArtists.length === 0) return;
+
+    let enriched = 0;
+    for (const artist of unknownArtists) {
+      const evidence = await getArtistGenreEvidence(artist.name);
+      if (evidence.length === 0) continue;
+
+      const resolved = resolveGenres(evidence);
+      if (resolved.usedFallback) continue;
+
+      artist.primaryGenreId = resolved.primaryGenreId;
+      artist.genreIds = resolved.genreIds;
+      enriched++;
+    }
+
+    if (enriched > 0) {
+      // Rebuild scene with updated genre assignments
+      const result = await buildScene(raw, viewMode);
+      onRebuilt(result);
+    }
+  } catch { /* Last.fm enrichment is non-critical — never block the cosmos */ }
+}
+
 /** Extract album title → image URL from stats.fm API data */
 function extractAlbumImages(apiData: StatsFmApiData): Map<string, string> {
   const map = new Map<string, string>();
@@ -59,6 +106,10 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
       const raw = await new MockDataAdapter().load();
       const { scene, dataset } = await buildScene(raw, 'album');
       set({ rawData: raw, dataset, scene, albumImages: new Map(), isLoading: false });
+      // Non-blocking Last.fm enrichment — fires and forgets
+      void enrichWithLastFm(dataset, raw, 'album', ({ scene: s, dataset: d }) => {
+        set({ scene: s, dataset: d });
+      });
     } catch (e) {
       set({ error: String(e), isLoading: false });
     }
@@ -99,6 +150,9 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
       const raw = new StatsFmApiAdapter().convert(apiData);
       const { scene, dataset } = await buildScene(raw, 'album');
       set({ rawData: raw, dataset, scene, albumImages, isLoading: false });
+      void enrichWithLastFm(dataset, raw, 'album', ({ scene: s, dataset: d }) => {
+        set({ scene: s, dataset: d });
+      });
     } catch (e) {
       set({ error: String(e), isLoading: false });
     }

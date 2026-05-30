@@ -2,6 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { useCosmosStore } from '../stores/cosmos-store.js';
 import { UploadIcon, CloseIcon, GalaxyIcon } from '@music-cosmos/ui';
 import { StatsFmConnect } from './StatsFmConnect.js';
+import { LastFmSettings } from './LastFmSettings.js';
 import type { StatsFmApiData } from '@music-cosmos/data-adapters';
 
 interface ImportPanelProps {
@@ -176,6 +177,14 @@ export function ImportPanel({ onClose }: ImportPanelProps) {
               note="Up to 30 days to receive"
             />
           </div>
+        </div>
+
+        {/* Last.fm genre enrichment — optional */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8 }}>
+            Genre enrichment · Optional
+          </div>
+          <LastFmSettings />
         </div>
 
         {/* Privacy */}
