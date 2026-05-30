@@ -152,20 +152,15 @@ export function SpotifyConnect({ onData }: SpotifyConnectProps) {
             />
           </div>
 
-          {/* Redirect URI */}
+          {/* Redirect URI — must match EXACTLY what's registered */}
           {redirectUri && (
             <div style={{ marginBottom: 10 }}>
               <label style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: 1.5, display: 'block', marginBottom: 4 }}>
-                Redirect URI to register
+                Redirect URI — register this EXACTLY in Spotify Dashboard
               </label>
-              <div style={uriBoxStyle}
-                onClick={() => void navigator.clipboard.writeText(redirectUri)}
-                title="Click to copy"
-              >
-                <span style={{ color: '#64748b', fontSize: 10, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {redirectUri}
-                </span>
-                <span style={{ fontSize: 9, color: '#334155', flexShrink: 0 }}>copy</span>
+              <RedirectUriBox uri={redirectUri} />
+              <div style={{ fontSize: 9, color: '#334155', marginTop: 5, lineHeight: 1.5 }}>
+                ⚠ Codespaces URL changes each session — update it in the Dashboard if you get a redirect_uri error.
               </div>
             </div>
           )}
@@ -228,17 +223,35 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box',
 };
 
-const uriBoxStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  background: 'rgba(255,255,255,0.03)',
-  border: '1px solid rgba(255,255,255,0.06)',
-  borderRadius: 6,
-  padding: '6px 10px',
-  cursor: 'pointer',
-  overflow: 'hidden',
-};
+function RedirectUriBox({ uri }: { uri: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard.writeText(uri);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        background: copied ? 'rgba(52,211,153,0.08)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${copied ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.1)'}`,
+        borderRadius: 6, padding: '7px 10px',
+        cursor: 'pointer', overflow: 'hidden',
+        transition: 'all 0.2s ease',
+      }}
+      onClick={copy}
+      title="Click to copy"
+    >
+      <span style={{ color: '#94a3b8', fontSize: 10, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+        {uri}
+      </span>
+      <span style={{ fontSize: 9, color: copied ? '#34d399' : '#475569', flexShrink: 0 }}>
+        {copied ? '✓ copied' : 'copy'}
+      </span>
+    </div>
+  );
+}
 
 const secondaryBtnStyle: React.CSSProperties = {
   padding: '6px 8px',
