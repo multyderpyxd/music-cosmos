@@ -88,9 +88,12 @@ export function GalaxyObject({ node, onClick, particleOpacity = 0.55, dimmed = f
     return geo;
   }, [domainId, radius, visualProps.size, visualProps.color]);
 
-  const effectiveOpacity = dimmed ? particleOpacity * 0.12 : particleOpacity;
-  // Core: small, fully opaque HDR sphere → always blooms (no transparent flag)
-  const coreHdr = dimmed ? 1.5 : 5;
+  // Particles: dimmed → less visible but still present
+  const effectiveOpacity = dimmed ? particleOpacity * 0.25 : particleOpacity;
+  // Core: HDR ×2.5 when dimmed → color * 2.5 > 0.8 for most galaxy colors → keeps bloom.
+  // HDR ×5 when normal → strong bloom nucleus.
+  // No opacity reduction (transparent=false always) to avoid killing luminance in HDR buffer.
+  const coreHdr = dimmed ? 2.5 : 5;
 
   return (
     <group position={[position.x, position.y, position.z]}>
@@ -122,8 +125,6 @@ export function GalaxyObject({ node, onClick, particleOpacity = 0.55, dimmed = f
             visualProps.color[1] * coreHdr,
             visualProps.color[2] * coreHdr,
           )}
-          transparent={dimmed}
-          opacity={dimmed ? 0.25 : 1}
           toneMapped={false}
         />
       </mesh>

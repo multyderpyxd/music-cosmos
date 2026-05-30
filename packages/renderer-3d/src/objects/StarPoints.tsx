@@ -16,9 +16,9 @@ interface StarPointsProps {
 export function StarPoints({ nodes, selectedId, hoveredId, selectedEntityType, onSelect, onHover }: StarPointsProps) {
   const pointsRef = useRef<THREE.Points>(null!);
   const hasSelection = selectedId !== null;
-  // Stars lose bloom only when a NON-STAR entity is selected (planet/satellite/galaxy).
-  // When another star is selected, background stars keep a soft bloom.
-  const nonStarSelected = hasSelection && !!selectedEntityType && selectedEntityType !== 'star';
+  // selectedEntityType kept as prop for potential future use; bloom behaviour
+  // no longer depends on it — stars always keep a soft bloom when dimmed.
+  void selectedEntityType;
 
   const { geometry, nodeIds } = useMemo(() => {
     const nodeIds = nodes.map((n) => n.id);
@@ -35,22 +35,22 @@ export function StarPoints({ nodes, selectedId, hoveredId, selectedEntityType, o
       const isHovered  = node.id === hoveredId && !isSelected;
       const dimmed     = hasSelection && !isSelected;
 
-      const sizeScale = isHovered ? 2.2 : isSelected ? 2.0 : 1.4;
+      // Dimmed stars are smaller so they don't visually compete with selection
+      const sizeScale = isHovered ? 2.2 : isSelected ? 2.0 : (dimmed ? 0.85 : 1.4);
       sizes[i] = node.visualProps.size * sizeScale;
 
-      // dimFactor controls how much a non-selected star dims:
-      //   nonStarSelected → 0.12 (nearly invisible, no bloom)
-      //   star selected   → 0.38 (soft glow, still blooms at hdr×3.5)
-      const dimFactor = dimmed ? (nonStarSelected ? 0.12 : 0.38) : 1;
+      // dimFactor = 0.38 for ALL dimmed states.
+      // Result: 0.6 * 0.38 * 3.5 ≈ 0.80 → right at bloom threshold.
+      // Stars visually dim (smaller + lower brightness) but keep a soft glow
+      // regardless of whether a star, planet, satellite, or galaxy is selected.
+      const dimFactor = dimmed ? 0.38 : 1;
       const base = Math.max(0.6, node.visualProps.brightness) *
                    (isHovered ? 1.4 : isSelected ? 1.2 : 1) *
                    dimFactor;
 
-      // Stars always get HDR multiplier — bloom fires in all cases where
-      // effective value > luminance threshold (0.8).
-      // When nonStarSelected: 0.6 * 0.12 * 3.5 ≈ 0.25  → below threshold, no bloom ✓
-      // When starSelected:    0.6 * 0.38 * 3.5 ≈ 0.80  → at threshold, soft bloom ✓
-      // Normal state:         0.6 * 1.0  * 3.5 ≈ 2.10  → strong bloom ✓
+      // HDR always ×3.5 → bloom fires whenever luminance > 0.8
+      // dimmed:  0.6 * 0.38 * 3.5 ≈ 0.80  → soft bloom ✓
+      // normal:  0.6 * 1.00 * 3.5 ≈ 2.10  → strong bloom ✓
       const hdr = 3.5;
       colors[i * 3]     = node.visualProps.color[0] * base * hdr;
       colors[i * 3 + 1] = node.visualProps.color[1] * base * hdr;
