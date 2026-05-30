@@ -30,6 +30,11 @@ export function CosmosScene({
   activeEntityTypes,
   galaxyParticleOpacity,
 }: CosmosSceneProps) {
+  // What type of entity is currently selected — needed for star bloom logic
+  const selectedEntityType = useMemo(() => {
+    if (!selectedId) return null;
+    return scene.nodes.find((n) => n.id === selectedId)?.entityType ?? null;
+  }, [selectedId, scene.nodes]);
   const { galaxies, stars, planets, satellites, asteroidBelts } = useMemo(() => {
     const galaxies: VisualNode[] = [];
     const stars: VisualNode[] = [];
@@ -88,6 +93,7 @@ export function CosmosScene({
           nodes={stars}
           selectedId={selectedId}
           hoveredId={hoveredId}
+          selectedEntityType={selectedEntityType}
           onSelect={onSelect}
           onHover={onHover}
         />

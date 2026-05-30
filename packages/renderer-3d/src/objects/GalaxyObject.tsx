@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import * as THREE from 'three';
 import type { VisualNode } from '@music-cosmos/layout-engine';
 import { mulberry32 } from '@music-cosmos/layout-engine';
@@ -17,53 +17,90 @@ function hashStr(s: string): number {
   return h >>> 0;
 }
 
-export function GalaxyObject({ node, onClick, isSelected, particleOpacity = 0.55, dimmed = false }: GalaxyObjectProps) {
-  const { position, visualProps, domainId } = node;
-  const diskRef = useRef<THREE.Points>(null!);
+const TWO_PI = Math.PI * 2;
 
-  const pointCount = Math.max(200, Math.min(1200, Math.floor(visualProps.size * 3)));
+export function GalaxyObject({ node, onClick, particleOpacity = 0.55, dimmed = false }: GalaxyObjectProps) {
+  const { position, visualProps, domainId } = node;
   const radius = visualProps.size * 0.35;
 
-  const { positions, colors } = useMemo(() => {
-    const rng = mulberry32(hashStr(domainId));
-    const pos = new Float32Array(pointCount * 3);
-    const col = new Float32Array(pointCount * 3);
-    const baseColor = new THREE.Color(visualProps.color[0], visualProps.color[1], visualProps.color[2]);
-
-    for (let i = 0; i < pointCount; i++) {
-      const r = Math.pow(rng(), 0.5) * radius;
-      const theta = rng() * Math.PI * 2;
-      pos[i * 3]     = r * Math.cos(theta);
-      pos[i * 3 + 1] = (rng() - 0.5) * radius * 0.04;
-      pos[i * 3 + 2] = r * Math.sin(theta);
-      const b = 0.3 + rng() * 0.7;
-      col[i * 3]     = baseColor.r * b;
-      col[i * 3 + 1] = baseColor.g * b;
-      col[i * 3 + 2] = baseColor.b * b;
-    }
-    return { positions: pos, colors: col };
-  }, [domainId, pointCount, radius, visualProps.color]);
-
+  // --- Spiral arm particle geometry ---
   const geometry = useMemo(() => {
+    const rng = mulberry32(hashStr(domainId));
+    const total = Math.max(300, Math.min(1400, Math.floor(visualProps.size * 4)));
+    const ARM_COUNT   = 2;                              // 2-arm barred spiral
+    const bulgeCount  = Math.floor(total * 0.18);       // dense central bulge
+    const armTotal    = total - bulgeCount;
+    const perArm      = Math.floor(armTotal / ARM_COUNT);
+
+    const positions = new Float32Array(total * 3);
+    const colors    = new Float32Array(total * 3);
+    const base = new THREE.Color(visualProps.color[0], visualProps.color[1], visualProps.color[2]);
+    let idx = 0;
+
+    // ── Spiral arms ──
+    for (let arm = 0; arm < ARM_COUNT; arm++) {
+      const armOffset = (arm / ARM_COUNT) * TWO_PI;
+
+      for (let p = 0; p < perArm; p++) {
+        const t = rng();                            // 0 = center, 1 = outer edge
+        const r = Math.pow(t, 0.55) * radius;      // concentrated near center
+        const theta = armOffset + t * Math.PI * 2.6 + (rng() - 0.5) * 0.5;
+
+        // Arm width grows toward outer edge
+        const width = radius * (0.04 + t * 0.22);
+        const tangentAngle = theta + Math.PI * 0.5;
+        const scatter = (rng() - 0.5) * width;
+
+        positions[idx * 3]     = r * Math.cos(theta) + scatter * Math.cos(tangentAngle);
+        positions[idx * 3 + 1] = (rng() - 0.5) * radius * 0.035;
+        positions[idx * 3 + 2] = r * Math.sin(theta) + scatter * Math.sin(tangentAngle);
+
+        // Brighter near center, dimmer at edge
+        const bright = 0.2 + (1 - t) * 0.7 + rng() * 0.1;
+        colors[idx * 3]     = base.r * bright;
+        colors[idx * 3 + 1] = base.g * bright;
+        colors[idx * 3 + 2] = base.b * bright;
+        idx++;
+      }
+    }
+
+    // ── Central bulge (spherical distribution, very concentrated) ──
+    for (let p = 0; p < bulgeCount; p++) {
+      const r    = Math.pow(rng(), 2.5) * radius * 0.22;
+      const theta = rng() * TWO_PI;
+      const phi   = (rng() - 0.5) * Math.PI;
+
+      positions[idx * 3]     = r * Math.cos(theta) * Math.cos(phi);
+      positions[idx * 3 + 1] = r * Math.sin(phi) * 0.45;
+      positions[idx * 3 + 2] = r * Math.sin(theta) * Math.cos(phi);
+
+      // Bulge is warmer/brighter — mix color toward warm white
+      const warmth = 0.6 + rng() * 0.5;
+      colors[idx * 3]     = Math.min(1, base.r * warmth + 0.15);
+      colors[idx * 3 + 1] = Math.min(1, base.g * warmth + 0.10);
+      colors[idx * 3 + 2] = Math.min(1, base.b * warmth + 0.05);
+      idx++;
+    }
+
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
     return geo;
-  }, [positions, colors]);
+  }, [domainId, radius, visualProps.size, visualProps.color]);
 
-  const effectiveOpacity = dimmed ? particleOpacity * 0.15 : particleOpacity;
-  // Fully opaque by default so HDR values (×3) reach the bloom buffer.
-  // Only reduce opacity when dimmed (another entity is selected).
-  const coreOpacity = dimmed ? 0.18 : 1;
+  const effectiveOpacity = dimmed ? particleOpacity * 0.12 : particleOpacity;
+  // Core: small, fully opaque HDR sphere → always blooms (no transparent flag)
+  const coreHdr = dimmed ? 1.5 : 5;
 
   return (
     <group position={[position.x, position.y, position.z]}>
-      {/* Decorative nebula particles — NOT clickable (no event handlers) */}
+
+      {/* Spiral arm + bulge particles — decorative, NOT clickable */}
       {particleOpacity > 0 && (
-        <points ref={diskRef} geometry={geometry}>
+        <points geometry={geometry}>
           <pointsMaterial
             vertexColors
-            size={isSelected ? 2.5 : 1.8}
+            size={1.6}
             sizeAttenuation
             transparent
             opacity={effectiveOpacity}
@@ -72,23 +109,35 @@ export function GalaxyObject({ node, onClick, isSelected, particleOpacity = 0.55
         </points>
       )}
 
-      {/* Central core sphere — the ONLY clickable part of the galaxy */}
+      {/* Galactic nucleus — tiny bright point (much smaller than a star visually)
+          surrounded by the spiral disc. Fully opaque so it always blooms. */}
       <mesh
         onClick={(e) => { e.stopPropagation(); onClick?.(); }}
         onPointerOver={(e) => e.stopPropagation()}
       >
-        <sphereGeometry args={[radius * 0.12, 10, 10]} />
+        <sphereGeometry args={[radius * 0.035, 8, 8]} />
         <meshBasicMaterial
           color={new THREE.Color(
-            visualProps.color[0] * 3,
-            visualProps.color[1] * 3,
-            visualProps.color[2] * 3,
+            visualProps.color[0] * coreHdr,
+            visualProps.color[1] * coreHdr,
+            visualProps.color[2] * coreHdr,
           )}
           transparent={dimmed}
-          opacity={coreOpacity}
+          opacity={dimmed ? 0.25 : 1}
           toneMapped={false}
         />
       </mesh>
+
+      {/* Larger invisible click area for easier interaction.
+          opacity=0 + transparent=true = invisible but still raycasted. */}
+      <mesh
+        onClick={(e) => { e.stopPropagation(); onClick?.(); }}
+        onPointerOver={(e) => e.stopPropagation()}
+      >
+        <sphereGeometry args={[radius * 0.25, 6, 6]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+
     </group>
   );
 }
