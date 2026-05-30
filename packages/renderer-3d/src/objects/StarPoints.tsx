@@ -62,7 +62,7 @@ export function StarPoints({ nodes, selectedId, hoveredId, selectedEntityType, o
     geo.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
     geo.setAttribute('size',     new THREE.BufferAttribute(sizes, 1));
     return { geometry: geo, nodeIds };
-  }, [nodes, selectedId, hoveredId, hasSelection, nonStarSelected]);
+  }, [nodes, selectedId, hoveredId, hasSelection]);
 
   if (nodes.length === 0) return null;
 
