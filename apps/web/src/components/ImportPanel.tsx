@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { useCosmosStore } from '../stores/cosmos-store.js';
 import { UploadIcon, CloseIcon, GalaxyIcon } from '@music-cosmos/ui';
+import { StatsFmConnect } from './StatsFmConnect.js';
+import type { StatsFmApiData } from '@music-cosmos/data-adapters';
 
 interface ImportPanelProps {
   onClose: () => void;
@@ -36,7 +38,13 @@ export function ImportPanel({ onClose }: ImportPanelProps) {
   const [progressMsg, setProgressMsg] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null!);
   const importFile = useCosmosStore((s) => s.importFile);
+  const loadFromStatsFm = useCosmosStore((s) => s.loadFromStatsFm);
   const error = useCosmosStore((s) => s.error);
+
+  const handleStatsFmData = useCallback(async (data: StatsFmApiData) => {
+    await loadFromStatsFm(data);
+    setTimeout(onClose, 800);
+  }, [loadFromStatsFm, onClose]);
 
   const processFile = useCallback(async (file: File) => {
     setFileName(file.name);
@@ -147,19 +155,27 @@ export function ImportPanel({ onClose }: ImportPanelProps) {
           )}
         </div>
 
-        {/* Format guides */}
-        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-          <FormatCard
-            name="stats.fm"
-            accentColor="#FF6B35"
-            steps={['Go to stats.fm → Settings', 'Scroll to "Export data"', 'Click Export → download JSON', 'Drop that file here']}
-          />
-          <FormatCard
-            name="Spotify Extended History"
-            accentColor="#1DB954"
-            steps={['spotify.com → Account → Privacy', '"Request extended streaming history"', 'Wait up to 30 days for email', 'Unzip → drop any .json file']}
-            note="Up to 30 days to receive"
-          />
+        {/* stats.fm live connection — recommended */}
+        <div style={{ marginTop: 16, padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
+          <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 12 }}>
+            Live connection · Recommended
+          </div>
+          <StatsFmConnect onData={handleStatsFmData} />
+        </div>
+
+        {/* File import guides */}
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 8 }}>
+            Or import a file export
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <FormatCard
+              name="Spotify Extended History"
+              accentColor="#1DB954"
+              steps={['spotify.com → Account → Privacy', '"Request extended streaming history"', 'Wait up to 30 days for email', 'Unzip → drop any .json file']}
+              note="Up to 30 days to receive"
+            />
+          </div>
         </div>
 
         {/* Privacy */}

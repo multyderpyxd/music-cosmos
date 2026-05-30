@@ -2,7 +2,8 @@ import { create } from 'zustand';
 import type { RawMusicData, MusicDataset } from '@music-cosmos/domain';
 import type { ViewMode } from '@music-cosmos/config';
 import type { VisualScene } from '@music-cosmos/layout-engine';
-import { MockDataAdapter, StatsFmImportAdapter, SpotifyExportAdapter } from '@music-cosmos/data-adapters';
+import { MockDataAdapter, StatsFmImportAdapter, SpotifyExportAdapter, StatsFmApiAdapter } from '@music-cosmos/data-adapters';
+import type { StatsFmApiData } from '@music-cosmos/data-adapters';
 import { normalize } from '@music-cosmos/normalization';
 import { mapDatasetToCosmicGraph } from '@music-cosmos/cosmos-engine';
 import { computeLayout } from '@music-cosmos/layout-engine';
@@ -16,6 +17,7 @@ interface CosmosState {
   error: string | null;
   loadMockData: () => Promise<void>;
   importFile: (file: File) => Promise<void>;
+  loadFromStatsFm: (data: StatsFmApiData) => Promise<void>;
   recomputeScene: (viewMode: ViewMode) => void;
 }
 
@@ -62,6 +64,17 @@ export const useCosmosStore = create<CosmosState>((set, get) => ({
         throw new Error('Unsupported file type. Use a JSON export from stats.fm or Spotify.');
       }
       const raw = await adapter.load(content);
+      const { scene, dataset } = await buildScene(raw, 'album');
+      set({ rawData: raw, dataset, scene, isLoading: false });
+    } catch (e) {
+      set({ error: String(e), isLoading: false });
+    }
+  },
+
+  loadFromStatsFm: async (apiData: StatsFmApiData) => {
+    set({ isLoading: true, error: null });
+    try {
+      const raw = new StatsFmApiAdapter().convert(apiData);
       const { scene, dataset } = await buildScene(raw, 'album');
       set({ rawData: raw, dataset, scene, isLoading: false });
     } catch (e) {

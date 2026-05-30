@@ -2,15 +2,26 @@ import { useEffect } from 'react';
 import { useCosmosStore } from '../stores/cosmos-store.js';
 import { MusicCosmosScene } from '../scenes/MusicCosmosScene.js';
 import { GalaxyIcon } from '@music-cosmos/ui';
+import { getCachedData } from '../lib/statsFmApi.js';
 import '../styles/ui.css';
 
 export function App() {
-  const scene     = useCosmosStore((s) => s.scene);
-  const isLoading = useCosmosStore((s) => s.isLoading);
-  const error     = useCosmosStore((s) => s.error);
-  const loadMock  = useCosmosStore((s) => s.loadMockData);
+  const scene            = useCosmosStore((s) => s.scene);
+  const isLoading        = useCosmosStore((s) => s.isLoading);
+  const error            = useCosmosStore((s) => s.error);
+  const loadMock         = useCosmosStore((s) => s.loadMockData);
+  const loadFromStatsFm  = useCosmosStore((s) => s.loadFromStatsFm);
 
-  useEffect(() => { void loadMock(); }, [loadMock]);
+  useEffect(() => {
+    // On startup: if the user has valid cached stats.fm data, use it.
+    // Otherwise fall back to mock data.
+    const cached = getCachedData();
+    if (cached) {
+      void loadFromStatsFm(cached);
+    } else {
+      void loadMock();
+    }
+  }, [loadMock, loadFromStatsFm]);
 
   if (error) {
     return (
