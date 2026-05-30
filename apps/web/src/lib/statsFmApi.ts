@@ -65,7 +65,9 @@ export interface StatsFmUser {
   customId: string;
   displayName: string;
   image?: string;
-  isPublic: boolean;
+  // Note: stats.fm API does not expose a simple isPublic boolean.
+  // Access is verified implicitly: if data endpoints return 401/403
+  // the apiFetch helper will throw a descriptive error.
 }
 
 export interface StatsFmData {
@@ -115,9 +117,12 @@ async function apiFetch<T>(path: string): Promise<T> {
     headers: { Accept: 'application/json' },
   });
   if (!res.ok) {
-    const msg = res.status === 404
-      ? 'User not found — check the username and make sure the profile is public'
-      : `stats.fm API error ${res.status}`;
+    const msg =
+      res.status === 404
+        ? 'User not found — check the username spelling'
+        : res.status === 401 || res.status === 403
+          ? 'Profile is private — go to stats.fm → Settings → Profile and set visibility to Public'
+          : `stats.fm API error ${res.status}`;
     throw new Error(msg);
   }
   return res.json() as Promise<T>;
@@ -155,12 +160,6 @@ export async function fetchStatsFmData(
   progress(steps[0]!);
   const userRes = await apiFetch<{ item: StatsFmUser }>(`/users/${username}`);
   const user = userRes.item;
-
-  if (!user.isPublic) {
-    throw new Error(
-      'This stats.fm profile is private. Go to stats.fm → Settings → Profile and enable "Public profile".',
-    );
-  }
 
   const uid = user.customId;
 
