@@ -9,7 +9,8 @@
     "test": "vitest --workspace vitest.workspace.ts",
     "test:coverage": "vitest --workspace vitest.workspace.ts --coverage",
     "lint": "eslint . --ext .ts,.tsx --ignore-path .gitignore",
-    "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "genres:update": "node scripts/update-genre-ontology.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.0.0",

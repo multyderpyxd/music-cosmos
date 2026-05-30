@@ -15,42 +15,19 @@ import type {
   ListeningEvent,
   GenreEvidence,
 } from '@music-cosmos/domain';
-import { genreAliasMap, fallbackGenreId } from '@music-cosmos/config';
+import { fallbackGenreId, ALL_GENRES } from '@music-cosmos/config';
 import { normalizeArtistName, normalizeTrackTitle, normalizeAlbumTitle } from '../dedupe/artistNormalizer.js';
 import { aggregateStats } from '../metrics/metricsAggregator.js';
+import { resolveGenres } from '../genre/GenreResolver.js';
 
 export interface NormalizationConfig {
+  /** @deprecated Use the built-in FULL_GENRE_ALIAS_MAP from config. Kept for test overrides. */
   genreAliasMap?: Map<string, string>;
   fallbackGenre?: string;
 }
 
-/** Resolve primary genre from GenreEvidence[] or legacy genreHint string. */
-function resolveGenreFromEvidence(
-  evidence: GenreEvidence[] | undefined,
-  hint: string | undefined,
-  aliasMap: Map<string, string>,
-  fallback: string,
-): ReturnType<typeof genreId> {
-  // Try genreEvidence first (new path)
-  if (evidence && evidence.length > 0) {
-    // Pick highest-confidence evidence
-    const best = [...evidence].sort((a, b) => b.weight * b.confidence - a.weight * a.confidence)[0];
-    if (best) {
-      const name = best.normalizedName || best.rawName.toLowerCase().trim();
-      const resolved = aliasMap.get(name);
-      if (resolved) return genreId(resolved);
-    }
-  }
-  // Fall back to legacy genreHint
-  if (hint) {
-    const resolved = aliasMap.get(hint.toLowerCase().trim());
-    if (resolved) return genreId(resolved);
-  }
-  return genreId(fallback);
-}
 
 export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): MusicDataset {
-  const aliasMap = config.genreAliasMap ?? genreAliasMap;
   const fallback = config.fallbackGenre ?? fallbackGenreId;
 
   const genres = new Map<ReturnType<typeof genreId>, Genre>();
@@ -63,14 +40,14 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
   const trackKeyToId = new Map<string, ReturnType<typeof trackId>>();
   const albumKeyToId = new Map<string, ReturnType<typeof albumId>>();
 
-  // Fallback name for streams where artistName couldn't be resolved
-  const PARTIAL_ARTIST_NAME = 'Unknown Artist';
-
-  function ensureGenre(gId: ReturnType<typeof genreId>, name: string): void {
-    if (!genres.has(gId)) {
-      genres.set(gId, { id: gId, name, aliases: [], externalIds: {} });
-    }
+  // Pre-populate genres from the full taxonomy so all known genres are available
+  for (const g of ALL_GENRES) {
+    const gId = genreId(g.id);
+    genres.set(gId, { id: gId, name: g.name, aliases: g.aliases, externalIds: {} });
   }
+
+  const PARTIAL_ARTIST_NAME = 'Unknown Artist';
+  const FALLBACK_GENRE_ID = genreId(fallback);
 
   function getOrCreateArtist(
     name: string,
@@ -82,16 +59,16 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
     const existing = artistKeyToId.get(key);
 
     if (existing !== undefined) {
-      // Upgrade genre if this event brings better genre evidence
+      // Upgrade genre if this event brings better evidence and artist was unknown
       const hasEvidence = (genreEvidence && genreEvidence.length > 0) || genreHint;
       if (hasEvidence) {
         const artist = artists.get(existing);
         if (artist && String(artist.primaryGenreId) === fallback) {
-          const gId = resolveGenreFromEvidence(genreEvidence, genreHint, aliasMap, fallback);
-          const genreName = genreEvidence?.[0]?.rawName ?? genreHint ?? 'Unknown';
-          ensureGenre(gId, genreName);
-          artist.primaryGenreId = gId;
-          artist.genreIds = [gId];
+          const resolved = resolveGenres(genreEvidence ?? [], genreHint);
+          if (!resolved.usedFallback) {
+            artist.primaryGenreId = resolved.primaryGenreId;
+            artist.genreIds = resolved.genreIds;
+          }
         }
       }
       return existing;
@@ -99,15 +76,13 @@ export function normalize(raw: RawMusicData, config: NormalizationConfig = {}): 
 
     const id = artistId(`a:${key.replace(/\s+/g, '-')}`);
     artistKeyToId.set(key, id);
-    const gId = resolveGenreFromEvidence(genreEvidence, genreHint, aliasMap, fallback);
-    const genreName = genreEvidence?.[0]?.rawName ?? genreHint ?? 'Unknown';
-    ensureGenre(gId, genreName);
+    const resolved = resolveGenres(genreEvidence ?? [], genreHint);
     artists.set(id, {
       id,
       name,
       normalizedName: key,
-      primaryGenreId: gId,
-      genreIds: [gId],
+      primaryGenreId: resolved.usedFallback ? FALLBACK_GENRE_ID : resolved.primaryGenreId,
+      genreIds: resolved.usedFallback ? [FALLBACK_GENRE_ID] : resolved.genreIds,
       aliases: [],
       externalIds: {},
       isUnknown: isPartial,
