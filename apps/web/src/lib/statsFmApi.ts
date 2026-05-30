@@ -85,7 +85,7 @@ export interface StatsFmData {
   user: StatsFmUser;
   topArtists: StatsFmTopArtist[];
   topTracks: StatsFmTopTrack[];
-  topAlbums: StatsFmTopAlbum[];
+  // topAlbums removed — album info is embedded in each track, no separate fetch needed
   recentStreams: StatsFmStream[];
   fetchedAt: number;
 }
@@ -160,7 +160,9 @@ export async function fetchStatsFmData(
     }
   }
 
-  const steps = ['User profile', 'Top artists', 'Top tracks', 'Top albums', 'Recent streams'];
+  // topAlbums removed: the endpoint returns 400 with range=lifetime,
+  // and album info is already embedded in each track object — no separate fetch needed.
+  const steps = ['User profile', 'Top artists', 'Top tracks', 'Recent streams'];
   let done = 0;
   const progress = (step: string) => { done++; onProgress?.({ step, total: steps.length, done }); };
 
@@ -170,7 +172,7 @@ export async function fetchStatsFmData(
   const user = userRes.item;
   const uid = user.customId;
 
-  // 2. Top artists (lifetime) — range=lifetime per statsfm.js SDK
+  // 2. Top artists (lifetime)
   progress(steps[1]!);
   const artistsRes = await apiFetch<{ items: StatsFmTopArtist[] }>(
     `/users/${uid}/top/artists?range=lifetime&limit=50`,
@@ -182,14 +184,8 @@ export async function fetchStatsFmData(
     `/users/${uid}/top/tracks?range=lifetime&limit=100`,
   );
 
-  // 4. Top albums (lifetime)
+  // 4. Recent streams — /streams (no /recent suffix in v1 API)
   progress(steps[3]!);
-  const albumsRes = await apiFetch<{ items: StatsFmTopAlbum[] }>(
-    `/users/${uid}/top/albums?range=lifetime&limit=50`,
-  );
-
-  // 5. Recent streams — endpoint is /streams (no /recent suffix in v1 API)
-  progress(steps[4]!);
   const streamsRes = await apiFetch<{ items: StatsFmStream[] }>(
     `/users/${uid}/streams?limit=100`,
   );
@@ -198,7 +194,6 @@ export async function fetchStatsFmData(
     user,
     topArtists: artistsRes.items,
     topTracks:  tracksRes.items,
-    topAlbums:  albumsRes.items,
     recentStreams: streamsRes.items,
     fetchedAt: Date.now(),
   };
