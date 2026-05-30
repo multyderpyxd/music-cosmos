@@ -1,39 +1,41 @@
 /**
  * StatsFmApiAdapter — converts stats.fm API response data into RawMusicData.
  *
- * Receives the already-fetched data object (from apps/web/src/lib/statsFmApi.ts)
- * as a plain JS object. Uses a local structural type — no import from apps/.
+ * Field mapping (actual API names per statsfm.js SDK):
+ *   item.streams  = play count  (NOT item.playCount)
+ *   item.playedMs = total milliseconds listened  (NOT item.minutesListened)
  *
  * Strategy:
  *   1. Recent streams → real RawListeningEvents with real timestamps.
- *   2. Remaining plays from topTracks → synthetic events spread over 2 years,
- *      with recency bias, to account for the lifetime play counts.
+ *   2. Remaining lifetime plays (streams - already in recent) →
+ *      synthetic events spread over 730 days with recency bias.
  */
 
 import type { RawMusicData, RawListeningEvent } from '@music-cosmos/domain';
 
-// Local structural type — mirrors StatsFmData from apps/web/src/lib/statsFmApi.ts
-// Any object with this shape is accepted; no cross-boundary import needed.
+// Local structural type mirroring StatsFmData from apps/web/src/lib/statsFmApi.ts
+// (no cross-boundary import — structural typing handles compatibility)
 export interface StatsFmApiData {
   user: { customId: string };
   topTracks: Array<{
+    streams: number;   // play count
+    playedMs: number;  // total ms
     track: {
       name: string;
       durationMs: number;
       artists: Array<{ name: string; genres: string[] }>;
       albums: Array<{ name: string; releaseDate?: string }>;
     };
-    playCount: number;
   }>;
   recentStreams: Array<{
     endTime: string;
+    playedMs: number;
     track: {
       name: string;
       durationMs: number;
       artists: Array<{ name: string; genres: string[] }>;
       albums: Array<{ name: string }>;
     };
-    playedMs: number;
   }>;
   fetchedAt: number;
 }
@@ -66,11 +68,8 @@ export class StatsFmApiAdapter {
       });
     }
 
-    // ── 2. Synthetic events for the remaining lifetime plays ─────────────────
-    // For each top track, we already have the recent plays from above.
-    // We generate additional events to represent the remaining plays
-    // distributed over the past ~730 days with a recency bias.
-
+    // ── 2. Synthetic events for remaining lifetime plays ─────────────────────
+    // item.streams = lifetime play count from stats.fm
     for (const item of data.topTracks) {
       const artist = item.track.artists[0];
       const album  = item.track.albums[0];
@@ -78,28 +77,31 @@ export class StatsFmApiAdapter {
 
       const key = `${artist.name}::${item.track.name}`;
       const alreadyAccounted = recentPlays.get(key) ?? 0;
-      const remaining = Math.max(0, item.playCount - alreadyAccounted);
+      // item.streams is the lifetime play count
+      const remaining = Math.max(0, item.streams - alreadyAccounted);
       if (remaining === 0) continue;
 
       for (let i = 0; i < remaining; i++) {
-        // Math.pow biases random toward 0 (= recent), simulating higher
-        // activity in recent months vs distant past.
+        // Recency bias: more plays near present
         const t = Math.pow(Math.random(), 1.5);
         const daysAgo = t * 730;
         const playedAt = new Date(now.getTime() - daysAgo * 86_400_000);
+        // Use actual playedMs from top track as average duration if available
+        const avgDuration = item.playedMs > 0 && item.streams > 0
+          ? Math.round(item.playedMs / item.streams)
+          : (item.track.durationMs || 180_000);
 
         events.push({
           trackTitle:       item.track.name,
           artistName:       artist.name,
           albumTitle:       album?.name,
           playedAt,
-          durationPlayedMs: item.track.durationMs || 180_000,
+          durationPlayedMs: avgDuration,
           genreHint:        artist.genres[0],
         });
       }
     }
 
-    // Chronological order (not strictly required but makes debugging easier)
     events.sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
 
     return {

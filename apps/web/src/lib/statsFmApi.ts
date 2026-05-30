@@ -1,15 +1,20 @@
 /**
  * stats.fm API client with localStorage caching.
  *
- * Public profiles do not require authentication.
- * Cache TTL: 24 hours.  Force-refresh: pass forceRefresh=true.
+ * Response format from statsfm.js SDK (source of truth):
+ *   - Single resource: { item: { ... } }
+ *   - List resource:   { items: [ ... ] }
+ *   - Error:           { message: string, path: string, code: string }
+ *
+ * Top ranking items shape: { position, streams, playedMs, indicator, artist|track|album }
+ * NOTE: "streams" = play count, "playedMs" = total milliseconds listened.
  *
  * API reference: https://api.stats.fm/api/v1
  */
 
 const BASE = 'https://api.stats.fm/api/v1';
-const CACHE_KEY = 'cosmos_statsfm_v1';
-const TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const CACHE_KEY = 'cosmos_statsfm_v2';   // v2 to invalidate old cache with wrong field names
+const TTL_MS = 24 * 60 * 60 * 1000;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,39 +40,45 @@ export interface StatsFmTrack {
   albums: StatsFmAlbum[];
 }
 
+// Actual shape returned by /top/artists, /top/tracks, /top/albums endpoints:
+// { position, streams (= play count), playedMs (= total ms), indicator, artist|track|album }
 export interface StatsFmTopArtist {
+  position: number;
+  streams: number;    // play count
+  playedMs: number;   // total milliseconds listened
+  indicator: number | null;
   artist: StatsFmArtist;
-  playCount: number;
-  minutesListened: number;
-  streams: number;
 }
 
 export interface StatsFmTopTrack {
+  position: number;
+  streams: number;
+  playedMs: number;
+  indicator: number | null;
   track: StatsFmTrack;
-  playCount: number;
-  minutesListened: number;
 }
 
 export interface StatsFmTopAlbum {
+  position: number;
+  streams: number;
+  playedMs: number;
+  indicator: number | null;
   album: StatsFmAlbum;
-  playCount: number;
-  minutesListened: number;
 }
 
 export interface StatsFmStream {
-  endTime: string;         // ISO 8601
+  endTime: string;
   track: StatsFmTrack;
   playedMs: number;
 }
 
 export interface StatsFmUser {
-  id: number;
+  id: string;
   customId: string;
   displayName: string;
   image?: string;
-  // Note: stats.fm API does not expose a simple isPublic boolean.
-  // Access is verified implicitly: if data endpoints return 401/403
-  // the apiFetch helper will throw a descriptive error.
+  isPlus?: boolean;
+  privacySettings?: Record<string, unknown>;
 }
 
 export interface StatsFmData {
@@ -79,7 +90,7 @@ export interface StatsFmData {
   fetchedAt: number;
 }
 
-// ── Cache ────────────────────────────────────────────────────────────────────
+// ── Cache ─────────────────────────────────────────────────────────────────────
 
 export function getCachedData(): StatsFmData | null {
   try {
@@ -98,16 +109,11 @@ export function clearCache(): void {
 }
 
 export function getCachedUsername(): string | null {
-  const data = getCachedData();
-  return data?.user.customId ?? null;
+  return getCachedData()?.user.customId ?? null;
 }
 
 function saveCache(data: StatsFmData): void {
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-  } catch {
-    // Storage full — skip cache
-  }
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch { /* storage full */ }
 }
 
 // ── API fetcher ───────────────────────────────────────────────────────────────
@@ -117,12 +123,18 @@ async function apiFetch<T>(path: string): Promise<T> {
     headers: { Accept: 'application/json' },
   });
   if (!res.ok) {
+    let apiMessage = '';
+    try {
+      const body = await res.json() as { message?: string; code?: string };
+      apiMessage = body.message ?? '';
+    } catch { /* non-JSON error body */ }
+
     const msg =
       res.status === 404
-        ? 'User not found — check the username spelling'
+        ? `User not found — check the username spelling (${path})`
         : res.status === 401 || res.status === 403
-          ? 'Profile is private — go to stats.fm → Settings → Profile and set visibility to Public'
-          : `stats.fm API error ${res.status}`;
+          ? 'Profile is private — go to stats.fm → Settings → Profile → set visibility to Public'
+          : `stats.fm error ${res.status} on ${path}${apiMessage ? `: ${apiMessage}` : ''}`;
     throw new Error(msg);
   }
   return res.json() as Promise<T>;
@@ -150,41 +162,36 @@ export async function fetchStatsFmData(
 
   const steps = ['User profile', 'Top artists', 'Top tracks', 'Top albums', 'Recent streams'];
   let done = 0;
-
-  function progress(step: string) {
-    done++;
-    onProgress?.({ step, total: steps.length, done });
-  }
+  const progress = (step: string) => { done++; onProgress?.({ step, total: steps.length, done }); };
 
   // 1. User profile
   progress(steps[0]!);
   const userRes = await apiFetch<{ item: StatsFmUser }>(`/users/${username}`);
   const user = userRes.item;
-
   const uid = user.customId;
 
-  // 2. Top artists (lifetime)
+  // 2. Top artists (lifetime) — range=lifetime per statsfm.js SDK
   progress(steps[1]!);
   const artistsRes = await apiFetch<{ items: StatsFmTopArtist[] }>(
-    `/users/${uid}/top/artists?range=lifetime&limit=100`,
+    `/users/${uid}/top/artists?range=lifetime&limit=50`,
   );
 
   // 3. Top tracks (lifetime)
   progress(steps[2]!);
   const tracksRes = await apiFetch<{ items: StatsFmTopTrack[] }>(
-    `/users/${uid}/top/tracks?range=lifetime&limit=200`,
+    `/users/${uid}/top/tracks?range=lifetime&limit=100`,
   );
 
   // 4. Top albums (lifetime)
   progress(steps[3]!);
   const albumsRes = await apiFetch<{ items: StatsFmTopAlbum[] }>(
-    `/users/${uid}/top/albums?range=lifetime&limit=100`,
+    `/users/${uid}/top/albums?range=lifetime&limit=50`,
   );
 
-  // 5. Recent streams
+  // 5. Recent streams — endpoint is /streams (no /recent suffix in v1 API)
   progress(steps[4]!);
   const streamsRes = await apiFetch<{ items: StatsFmStream[] }>(
-    `/users/${uid}/streams/recent?limit=200`,
+    `/users/${uid}/streams?limit=100`,
   );
 
   const data: StatsFmData = {
